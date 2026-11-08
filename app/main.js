@@ -15,7 +15,7 @@
     { label: 'Free Games', match: ['free games', 'freegames'] }
   ];
 
-  var state = { apps: [], showHidden: false, focus: 0 };
+  var state = { apps: [], sources: null, showHidden: false, focus: 0 };
   var $ = function (id) { return document.getElementById(id); };
 
   function toast(msg) {
@@ -96,6 +96,35 @@
   function savedToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
   function saveToken(t) { try { if (t) localStorage.setItem(TOKEN_KEY, t); } catch (e) { /* storage blocked */ } }
 
+  // Inputs row: every source the TV reports. OK switches to it; Red switches
+  // and then opens the TV viewer (some firmware needs that to show the picture).
+  function inputsRow() {
+    var s = state.sources;
+    var head = '<h3>Inputs<small>';
+    if (!s) return head + 'checking…</small></h3>';
+    head += 'tvwindow API: ' + (s.tvwindow ? 'available' : 'NOT available in service') +
+      (s.current ? ' · now: ' + esc(s.current.type + ' ' + (s.current.number || '')) : '') +
+      (s.error ? ' · ' + esc(s.error) : '') + '</small></h3>';
+    var list = [];
+    (s.connected || []).forEach(function (x) { list.push({ x: x, on: true }); });
+    (s.disconnected || []).forEach(function (x) { list.push({ x: x, on: false }); });
+    if (!list.length) return head + '<div class="row"><div id="empty">The TV reported no input list.</div></div>';
+    return head + '<div class="row">' + list.map(function (it) {
+      var label = it.x.type + ' ' + it.x.number;
+      return '<div class="card focusable" data-src-type="' + esc(it.x.type) + '" data-src-num="' + esc(it.x.number) +
+        '" data-name="' + esc(label) + '"><div class="ph">' + esc(String(it.x.number)) + '</div><div class="meta">' +
+        '<div class="name">' + esc(it.x.name || label) + '</div><div class="id">' + esc(label) + '</div>' +
+        '<span class="tag ' + (it.on ? 'found' : '') + '">' + (it.on ? 'connected' : 'nothing plugged in') + '</span></div></div>';
+    }).join('') + '</div>';
+  }
+
+  function switchSource(type, num, name, viewer) {
+    log('', 'switch to ' + name + (viewer ? ' + TV viewer' : '') + ' …');
+    get('/setsource?type=' + encodeURIComponent(type) + '&number=' + encodeURIComponent(num) + (viewer ? '&viewer=1' : ''))
+      .then(function (r) { log('ok', 'switch OK: ' + name + (r.viewerError ? ' (viewer: ' + r.viewerError + ')' : '')); })
+      .catch(function (e) { log('bad', 'switch FAILED: ' + name + ' ' + e.message); });
+  }
+
   function remoteRow() {
     return '<h3>Remote buttons<small>first use shows an Allow prompt on the TV</small></h3><div class="row">' +
       REMOTE_TESTS.map(function (r) {
@@ -129,7 +158,7 @@
         return card(a, 'target', '<span class="tag found">' + (a.show ? 'visible' : 'hidden') + '</span>');
       }).join('') + '</div>';
     }).join('');
-    $('targets').innerHTML = remoteRow() + t;
+    $('targets').innerHTML = inputsRow() + t;
 
     var list = state.apps.filter(function (a) { return state.showHidden || a.show; })
       .sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
@@ -198,6 +227,8 @@
     if (!el) return;
     var keys = el.getAttribute('data-keys');
     if (keys) { pressKeys(keys, el.getAttribute('data-name')); return; }
+    var srcType = el.getAttribute('data-src-type');
+    if (srcType) { switchSource(srcType, el.getAttribute('data-src-num'), el.getAttribute('data-name'), mode === 'control'); return; }
     var id = el.getAttribute('data-id');
     var name = el.getAttribute('data-name');
     if (!id) { log('bad', name + ': not installed on this TV'); return; }
@@ -225,7 +256,9 @@
         if (bootInfo.error) log('bad', 'service update failed, using previous core: ' + bootInfo.error);
         return get('/apps');
       })
-      .then(function (data) { state.apps = data.apps || []; render(); })
+      .then(function (data) { state.apps = data.apps || []; render();
+        return get('/sources').catch(function (e) { return { tvwindow: false, error: e.message }; }); })
+      .then(function (src) { state.sources = src; render(); })
       .catch(function (e) {
         setStatus('bad', 'Service unavailable: ' + esc(e.message));
         $('all').innerHTML = '<div id="empty">The launcher service did not respond. Close TizenBrew fully and open it again.</div>';

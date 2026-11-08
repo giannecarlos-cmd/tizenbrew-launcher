@@ -11,7 +11,7 @@
 
 var fs = require('fs');
 
-var VERSION = '0.5.1';
+var VERSION = '0.6.0';
 
 function send(res, status, body, type) {
   res.writeHead(status, {
@@ -332,6 +332,66 @@ var routes = {
 
   // Alternative launch path. Some system apps (e.g. source/input apps) only
   // respond to an app-control request, not a plain launch.
+  // Input sources (HDMI etc.) via the TV's own APIs. tvwindow needs a privilege
+  // TizenBrew's service may not have; this route reports what's available.
+  '/sources': function (req, res) {
+    if (!hasTizen()) return send(res, 503, { error: 'tizen API not available in service' });
+    var out = {
+      tvwindow: !!(tizen.tvwindow && tizen.tvwindow.setSource),
+      systeminfo: !!(tizen.systeminfo && tizen.systeminfo.getPropertyValue),
+      current: null, connected: [], disconnected: [], error: null
+    };
+    try { if (out.tvwindow) out.current = tizen.tvwindow.getSource('MAIN'); } catch (e) { out.currentError = errText(e); }
+    if (!out.systeminfo) return send(res, 200, out);
+    try {
+      tizen.systeminfo.getPropertyValue('VIDEOSOURCE', guard(function (vs) {
+        function pick(list) {
+          var r = [];
+          for (var i = 0; list && i < list.length; i++) r.push({ type: list[i].type, number: list[i].number, name: list[i].editName || null });
+          return r;
+        }
+        out.connected = pick(vs && vs.connected);
+        out.disconnected = pick(vs && vs.disconnected);
+        send(res, 200, out);
+      }, function (e) { out.error = errText(e); send(res, 200, out); }), guard(function (e) {
+        out.error = errText(e);
+        send(res, 200, out);
+      }));
+    } catch (e) {
+      out.error = errText(e);
+      send(res, 200, out);
+    }
+  },
+
+  // /setsource?type=HDMI&number=1[&viewer=1]
+  '/setsource': function (req, res, query) {
+    if (!hasTizen()) return send(res, 503, { error: 'tizen API not available in service' });
+    if (!(tizen.tvwindow && tizen.tvwindow.setSource)) return send(res, 501, { error: 'tvwindow API not available in the service' });
+    var type = String(query.type || 'HDMI').toUpperCase();
+    var number = parseInt(query.number, 10);
+    if (!/^[A-Z_]{2,16}$/.test(type) || !(number >= 1 && number <= 8)) return send(res, 400, { error: 'bad type or number' });
+    try {
+      tizen.systeminfo.getPropertyValue('VIDEOSOURCE', guard(function (vs) {
+        var all = [].concat((vs && vs.connected) || [], (vs && vs.disconnected) || []);
+        var src = null;
+        for (var i = 0; i < all.length; i++) if (all[i].type === type && all[i].number === number) src = all[i];
+        if (!src) return send(res, 404, { error: type + ' ' + number + ' not found on this TV' });
+        tizen.tvwindow.setSource(src, guard(function () {
+          if (query.viewer !== '1') return send(res, 200, { ok: true, type: type, number: number });
+          tizen.application.launch('org.tizen.tv-viewer', function () {
+            send(res, 200, { ok: true, type: type, number: number, viewer: true });
+          }, function (e) { send(res, 200, { ok: true, type: type, number: number, viewerError: errText(e) }); });
+        }, function (e) { send(res, 500, { error: errText(e) }); }), guard(function (e) {
+          send(res, 500, { error: 'setSource: ' + errText(e) });
+        }), 'MAIN');
+      }, function (e) { send(res, 500, { error: errText(e) }); }), guard(function (e) {
+        send(res, 500, { error: 'VIDEOSOURCE: ' + errText(e) });
+      }));
+    } catch (e) {
+      fail(res, e);
+    }
+  },
+
   '/appcontrol': function (req, res, query) {
     if (!hasTizen()) return send(res, 503, { error: 'tizen API not available in service' });
     if (!query.id) return send(res, 400, { error: 'missing id' });
