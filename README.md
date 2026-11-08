@@ -24,7 +24,7 @@ The pinned tag only holds two stable bootstraps. On each launch `app/launcher.ht
 - `app/launcher.html` — tiny stable loader, served by TizenBrew at `127.0.0.1:8081`. It never changes, so the TV's web cache can't hold back updates.
 - `app/body.html`, `app/main.css`, `app/main.js` — the real screen, loaded with a unique query string on every launch.
 - `service/service.js` — stable Node bootstrap (ES5, Node 4) on `127.0.0.1:8190`: `/ping`, `/boot?ref=<sha>`.
-- `service/core.js` — the routes that bridge the page to the `tizen` API: `/info`, `/apps`, `/launch?id=`, `/appcontrol?id=`, `/icon?path=`.
+- `service/core.js` — the routes that bridge the page to the `tizen` API: `/info`, `/apps`, `/launch?id=`, `/appcontrol?id=`, `/icon?path=`, and `/key?keys=KEY_HDMI` (remote button presses through the TV's local remote-control service; the first use shows an Allow prompt on the TV).
 
 ## Remote keys (diagnostics screen)
 

@@ -85,6 +85,37 @@
   }
 
   // One row per target, showing every matching app so the right ID can be picked.
+  // Test buttons that press remote keys through the TV's remote-control service.
+  var REMOTE_TESTS = [
+    { label: 'TV Box (HDMI)', keys: 'KEY_HDMI', note: 'switches to the HDMI input' },
+    { label: 'Input list', keys: 'KEY_SOURCE', note: 'opens the Source menu' },
+    { label: 'Live TV', keys: 'KEY_TV', note: 'TV / TV Plus channels' },
+    { label: 'Channel up', keys: 'KEY_CHUP', note: 'next channel' }
+  ];
+  var TOKEN_KEY = 'xd.tvToken';
+  function savedToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
+  function saveToken(t) { try { if (t) localStorage.setItem(TOKEN_KEY, t); } catch (e) { /* storage blocked */ } }
+
+  function remoteRow() {
+    return '<h3>Remote buttons<small>first use shows an Allow prompt on the TV</small></h3><div class="row">' +
+      REMOTE_TESTS.map(function (r) {
+        return '<div class="card focusable" data-keys="' + esc(r.keys) + '" data-name="' + esc(r.label) + '">' +
+          '<div class="ph">⌁</div><div class="meta"><div class="name">' + esc(r.label) + '</div>' +
+          '<div class="id">' + esc(r.keys) + '</div><span class="tag">' + esc(r.note) + '</span></div></div>';
+      }).join('') + '</div>';
+  }
+
+  function pressKeys(keys, name) {
+    log('', 'keys ' + keys + ' … (answer Allow on the TV if asked)');
+    var tok = savedToken();
+    get('/key?keys=' + encodeURIComponent(keys) + (tok ? '&token=' + encodeURIComponent(tok) : ''))
+      .then(function (r) {
+        saveToken(r.token);
+        log('ok', 'keys OK: ' + name + ' via port ' + r.port + (r.token ? ' (approved)' : ''));
+      })
+      .catch(function (e) { log('bad', 'keys FAILED: ' + name + ' ' + e.message); });
+  }
+
   function render() {
     var t = TARGETS.map(function (tg) {
       var hits = findTarget(tg);
@@ -94,7 +125,7 @@
         return card(a, 'target', '<span class="tag found">' + (a.show ? 'visible' : 'hidden') + '</span>');
       }).join('') + '</div>';
     }).join('');
-    $('targets').innerHTML = t;
+    $('targets').innerHTML = remoteRow() + t;
 
     var list = state.apps.filter(function (a) { return state.showHidden || a.show; })
       .sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
@@ -161,6 +192,8 @@
   function launchFocused(mode) {
     var el = focusables()[state.focus];
     if (!el) return;
+    var keys = el.getAttribute('data-keys');
+    if (keys) { pressKeys(keys, el.getAttribute('data-name')); return; }
     var id = el.getAttribute('data-id');
     var name = el.getAttribute('data-name');
     if (!id) { log('bad', name + ': not installed on this TV'); return; }
