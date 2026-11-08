@@ -1,0 +1,11 @@
+# Keep local-only and sensitive files out of this public repo
+.env
+.env.*
+*.pem
+*.key
+*.p12
+secrets/
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
