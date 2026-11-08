@@ -277,12 +277,13 @@
           ' found=' + (a.found ? '<span class="ok">' + esc(a.found) + '</span>' : '<span class="bad">none</span>'));
       });
       box.innerHTML = lines.join('<br>') + '<br>Searching shared folders…';
-      var terms = CHECK.map(function (c) { return c[2]; });
+      // Also look for Samsung's home-bar tile art and app preview images.
+      var terms = CHECK.map(function (c) { return c[2]; }).concat(['crave', 'cosmo', 'preview', 'smarthub', 'homebar']);
       return terms.reduce(function (p, term) {
         return p.then(function () {
           return get('/iconsearch?q=' + term).then(function (r) {
             lines.push('<b>search "' + term + '"</b> ' + r.hits.length + ' hits' + (r.timedOut ? ' (timed out)' : '') + ': ' +
-              (r.hits.slice(0, 3).map(function (h) { return esc(h.path) + ' (' + Math.round(h.size / 1024) + 'KB)'; }).join(' | ') || 'none') +
+              (r.hits.slice(0, 4).map(function (h) { return esc(h.path) + ' (' + Math.round(h.size / 1024) + 'KB)'; }).join(' | ') || 'none') +
               (r.denied.length ? ' <span class="bad">no access: ' + esc(r.denied.join(', ')) + '</span>' : ''));
           }).catch(function (e) { lines.push('search "' + term + '" failed: ' + esc(e.message)); });
         });
