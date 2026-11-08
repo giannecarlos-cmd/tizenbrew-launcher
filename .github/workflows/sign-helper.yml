@@ -1,0 +1,92 @@
+name: Sign XD Input helper
+
+# Signs helper/xd-input with Tizen Studio's CLI and the public Tizen developer
+# and distributor certificates, the same way TizenBrew's own builds are signed,
+# then commits the signed packages to helper/dist/ so they can be downloaded
+# and installed with the TizenBrew Installer ("Select file to install").
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'helper/xd-input/**'
+      - '.github/workflows/sign-helper.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  TIZEN_STUDIO_VER: '5.6'
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: sudo apt-get install -y expect zip
+
+      - name: Install Tizen Studio CLI
+        run: |
+          curl -fsSLo tizen-installer "https://download.tizen.org/sdk/Installer/tizen-studio_${TIZEN_STUDIO_VER}/web-cli_Tizen_Studio_${TIZEN_STUDIO_VER}_ubuntu-64.bin"
+          chmod +x tizen-installer
+          ./tizen-installer --accept-license "$HOME/tizen-studio"
+          rm tizen-installer
+          echo "$HOME/tizen-studio/tools/ide/bin" >> "$GITHUB_PATH"
+
+      - name: Create author certificate and signing profiles
+        run: |
+          # Throwaway author certificate for this build. It only identifies
+          # this helper; it grants nothing beyond public privileges.
+          PW="xd$(openssl rand -hex 12)"
+          echo "::add-mask::$PW"
+          echo "AUTHOR_PW=$PW" >> "$GITHUB_ENV"
+          tizen certificate -a XDLauncher -p "$PW" -c CA -s BC -ct Vancouver -o "XD Launcher" -n "XD Launcher" -f xdauthor
+          CERTS="$HOME/tizen-studio/tools/certificate-generator/certificates"
+          AUTHOR="$HOME/tizen-studio-data/keystore/author/xdauthor.p12"
+          mkdir -p "$HOME/tizen-studio-data/profile"
+          cat > "$HOME/tizen-studio-data/profile/profiles.xml" <<EOF
+          <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+          <profiles active="XD-Old" version="3.1">
+          <profile name="XD-Old">
+          <profileitem ca="$CERTS/developer/tizen-developer-ca.cer" distributor="0" key="$AUTHOR" password="$PW" rootca=""/>
+          <profileitem ca="$CERTS/distributor/sdk-public/tizen-distributor-ca.cer" distributor="1" key="$CERTS/distributor/sdk-public/tizen-distributor-signer.p12" password="tizenpkcs12passfordsigner" rootca=""/>
+          <profileitem ca="" distributor="2" key="" password="" rootca=""/>
+          </profile>
+          <profile name="XD-New">
+          <profileitem ca="$CERTS/developer/tizen-developer-ca.cer" distributor="0" key="$AUTHOR" password="$PW" rootca=""/>
+          <profileitem ca="$CERTS/distributor/sdk-public/tizen-distributor-ca-new.cer" distributor="1" key="$CERTS/distributor/sdk-public/tizen-distributor-signer-new.p12" password="tizenpkcs12passfordsigner" rootca=""/>
+          <profileitem ca="" distributor="2" key="" password="" rootca=""/>
+          </profile>
+          </profiles>
+          EOF
+          sed -i 's/^ *//' "$HOME/tizen-studio-data/profile/profiles.xml"
+          tizen cli-config "profiles.path=$HOME/tizen-studio-data/profile/profiles.xml"
+
+      - name: Build and sign
+        working-directory: helper/xd-input
+        run: |
+          rm -rf .buildResult out && mkdir -p out
+          tizen build-web -out .buildResult
+          for P in Old New; do
+            mkdir -p "out/$P"
+            expect -c "set timeout 300; spawn tizen package -t wgt -o out/$P -s XD-$P -- .buildResult; expect eof"
+            cat "$HOME/tizen-studio-data/cli/logs/cli.log" | tail -20 || true
+            ls -la "out/$P"
+            test -n "$(ls out/$P/*.wgt 2>/dev/null)"
+          done
+          mkdir -p ../dist
+          cp out/Old/*.wgt ../dist/XDInput-signed.wgt
+          cp out/New/*.wgt ../dist/XDInput-signed-new.wgt
+          rm -rf .buildResult out
+          unzip -l ../dist/XDInput-signed.wgt
+
+      - name: Commit signed packages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add helper/dist/XDInput-signed.wgt helper/dist/XDInput-signed-new.wgt
+          git commit -m "Signed XD Input helper packages [skip ci]" || echo "No changes"
+          git push
