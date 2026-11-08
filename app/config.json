@@ -1,0 +1,189 @@
+{
+  "_about": "Lumen home configuration. Tiles say what to open; shelves say where they appear. Edit here instead of in code.",
+  "bedtime": "19:30",
+  "weather": {
+    "city": "",
+    "lat": null,
+    "lon": null,
+    "units": "celsius"
+  },
+  "ambience": "full",
+  "tiles": {
+    "tvbox": {
+      "label": "TV box",
+      "kind": "input",
+      "source": "HDMI1",
+      "color": "#3f6fa8",
+      "glyph": "hdmi",
+      "pinned": true
+    },
+    "oceanvibes": {
+      "label": "Ocean Vibes",
+      "kind": "input",
+      "color": "#2a9bd6",
+      "glyph": "wave",
+      "pinned": true,
+      "iconFrom": [
+        "com.samsung.tv.tvplus",
+        "com.samsung.tv.tvPlusDeeplinker"
+      ],
+      "source": "TV1"
+    },
+    "netflix": {
+      "label": "Netflix",
+      "kind": "app",
+      "ids": [
+        "org.tizen.netflix-app"
+      ],
+      "names": [
+        "^netflix$"
+      ],
+      "color": "#e50914"
+    },
+    "disney": {
+      "label": "Disney+",
+      "kind": "app",
+      "names": [
+        "^disney\\s*\\+?$",
+        "disney"
+      ],
+      "exclude": "service|preview|widget",
+      "color": "#1a3fd1"
+    },
+    "prime": {
+      "label": "Prime Video",
+      "kind": "app",
+      "ids": [
+        "org.tizen.primevideo"
+      ],
+      "names": [
+        "prime video"
+      ],
+      "exclude": "service",
+      "color": "#00a8e1"
+    },
+    "crave": {
+      "label": "Crave",
+      "kind": "app",
+      "ids": [
+        "SKvHIMBcln.CraveTV"
+      ],
+      "names": [
+        "^crave"
+      ],
+      "color": "#1f5bff"
+    },
+    "youtube": {
+      "label": "YouTube",
+      "kind": "app",
+      "ids": [
+        "9Ur5IzDKqV.TizenYouTube"
+      ],
+      "names": [
+        "^youtube$"
+      ],
+      "color": "#ff2a2a"
+    },
+    "cosmogo": {
+      "label": "CosmoGO",
+      "kind": "app",
+      "ids": [
+        "CDMPWSBGDH.cineplex"
+      ],
+      "names": [
+        "cosmo",
+        "cineplex"
+      ],
+      "color": "#6b46d6"
+    },
+    "tvplus": {
+      "label": "Samsung TV Plus",
+      "kind": "viewer",
+      "color": "#2a9bd6",
+      "iconFrom": [
+        "com.samsung.tv.tvplus",
+        "com.samsung.tv.tvPlusDeeplinker"
+      ]
+    },
+    "freegames": {
+      "label": "Free Games",
+      "kind": "app",
+      "ids": [
+        "FDLMApISUt.PlayWorks"
+      ],
+      "names": [
+        "free games"
+      ],
+      "color": "#e2559c"
+    },
+    "grove": {
+      "label": "Grove Guardians",
+      "kind": "soon",
+      "note": "Coming soon",
+      "color": "#3e8e5a",
+      "glyph": "leaf"
+    },
+    "diag": {
+      "label": "Diagnostics",
+      "kind": "action",
+      "color": "#5b6b82",
+      "glyph": "pulse"
+    },
+    "modules": {
+      "label": "TizenBrew",
+      "kind": "action",
+      "color": "#5b6b82",
+      "glyph": "grid"
+    }
+  },
+  "shelves": [
+    {
+      "id": "favorites",
+      "title": "Favorites",
+      "auto": true,
+      "size": "large",
+      "max": 6,
+      "from": [
+        "tvbox",
+        "oceanvibes",
+        "netflix",
+        "disney",
+        "prime",
+        "crave",
+        "youtube",
+        "cosmogo"
+      ]
+    },
+    {
+      "id": "apps",
+      "title": "All apps",
+      "tiles": [
+        "netflix",
+        "disney",
+        "prime",
+        "crave",
+        "youtube",
+        "cosmogo",
+        "tvplus",
+        "tvbox"
+      ]
+    },
+    {
+      "id": "play",
+      "title": "Play",
+      "tiles": [
+        "freegames",
+        "grove"
+      ]
+    },
+    {
+      "id": "system",
+      "title": "System",
+      "size": "small",
+      "tiles": [
+        "diag",
+        "modules"
+      ]
+    }
+  ]
+}
