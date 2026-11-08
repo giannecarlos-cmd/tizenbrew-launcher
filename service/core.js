@@ -11,7 +11,7 @@
 
 var fs = require('fs');
 
-var VERSION = '0.5.0';
+var VERSION = '0.5.1';
 
 function send(res, status, body, type) {
   res.writeHead(status, {
@@ -115,7 +115,7 @@ function wsParse(buf) {
   return { frames: frames, rest: buf };
 }
 
-function remoteSend(secure, keys, token, cb) {
+function remoteSend(host, secure, keys, token, cb) {
   var port = secure ? 8002 : 8001;
   var path = '/api/v2/channels/samsung.remote.control?name=' + encodeURIComponent(REMOTE_NAME) +
     (token ? '&token=' + encodeURIComponent(token) : '');
@@ -133,7 +133,7 @@ function remoteSend(secure, keys, token, cb) {
 
   function onConnect() {
     sock.write('GET ' + path + ' HTTP/1.1\r\n' +
-      'Host: 127.0.0.1:' + port + '\r\n' +
+      'Host: ' + host + ':' + port + '\r\n' +
       'Upgrade: websocket\r\nConnection: Upgrade\r\n' +
       'Sec-WebSocket-Key: ' + crypto.randomBytes(16).toString('base64') + '\r\n' +
       'Sec-WebSocket-Version: 13\r\n\r\n');
@@ -142,8 +142,8 @@ function remoteSend(secure, keys, token, cb) {
   var safeConnect = guard(onConnect, finish);
   try {
     sock = secure
-      ? tls.connect({ host: '127.0.0.1', port: port, rejectUnauthorized: false }, safeConnect) // TV's own self-signed cert, loopback only
-      : net.connect({ host: '127.0.0.1', port: port }, safeConnect);
+      ? tls.connect({ host: host, port: port, rejectUnauthorized: false }, safeConnect) // the TV's own self-signed cert; only ever this TV
+      : net.connect({ host: host, port: port }, safeConnect);
   } catch (e) {
     return finish(e);
   }
@@ -156,7 +156,7 @@ function remoteSend(secure, keys, token, cb) {
     (function next() {
       if (finished) return;
       if (i >= keys.length) {
-        return later(guard(function () { finish(null, { token: newToken || token || null, port: port, sent: keys }); }, finish), 300);
+        return later(guard(function () { finish(null, { token: newToken || token || null, port: port, host: host, sent: keys }); }, finish), 300);
       }
       sock.write(wsFrame(JSON.stringify({
         method: 'ms.remote.control',
@@ -190,14 +190,51 @@ function remoteSend(secure, keys, token, cb) {
         if (t) remoteToken = t;
         sendKeys(t);
       } else if (msg.event === 'ms.channel.unauthorized') {
-        return finish(new Error('the TV denied access (choose Allow when the prompt appears)'));
+        var denied = new Error('the TV denied access (choose Allow when the prompt appears)'); denied.kind = 'denied'; return finish(denied);
       } else if (msg.event === 'ms.channel.timeOut') {
-        return finish(new Error('the Allow prompt timed out'));
+        var to = new Error('the TV timed out waiting for approval'); to.kind = 'timeout'; return finish(to);
       }
     }
   }, finish));
   sock.on('error', guard(function (e) { finish(e); }));
   sock.on('close', guard(function () { finish(new Error('connection closed before keys were sent')); }));
+}
+
+// The TV's own Wi-Fi/Ethernet address. Samsung's local REST API reports it;
+// os.networkInterfaces() is the fallback.
+var lanIpCache = null;
+function lanAddress(cb) {
+  if (lanIpCache) return cb(lanIpCache);
+  var done = false;
+  function finish(ip) { if (done) return; done = true; if (ip) lanIpCache = ip; cb(ip || null); }
+  function fromOs() {
+    try {
+      var ifs = require('os').networkInterfaces();
+      for (var name in ifs) {
+        for (var i = 0; i < ifs[name].length; i++) {
+          var a = ifs[name][i];
+          if (a.family === 'IPv4' && !a.internal) return a.address;
+        }
+      }
+    } catch (e) { /* not available */ }
+    return null;
+  }
+  var t = later(guard(function () { finish(fromOs()); }), 3000);
+  try {
+    require('http').get('http://127.0.0.1:8001/api/v2/', guard(function (res) {
+      var body = '';
+      res.on('data', function (c) { body += c; });
+      res.on('end', guard(function () {
+        cancel(t);
+        var ip = null;
+        try { ip = JSON.parse(body).device.ip; } catch (e) { /* not JSON */ }
+        finish(/^\d{1,3}(\.\d{1,3}){3}$/.test(ip || '') ? ip : fromOs());
+      }, function () { finish(fromOs()); }));
+    }, function () { cancel(t); finish(fromOs()); })).on('error', guard(function () { cancel(t); finish(fromOs()); }));
+  } catch (e) {
+    cancel(t);
+    finish(fromOs());
+  }
 }
 
 function validKeys(list) {
@@ -209,22 +246,31 @@ function validKeys(list) {
 
 var routes = {
   // /key?keys=KEY_HDMI or KEY_1,KEY_2,KEY_ENTER, optional &token=<saved token>
+  // and &via=lan|lo (the route that worked last time, remembered by the page).
   '/key': function (req, res, query) {
     var keys = validKeys(query.keys);
     if (!keys) return send(res, 400, { error: 'keys must be KEY_* names, comma separated' });
     var token = query.token ? String(query.token).slice(0, 64) : remoteToken;
-    remoteSend(true, keys, token, guard(function (err, result) {
-      if (!err) return send(res, 200, { ok: true, token: result.token, port: result.port, sent: result.sent });
-      var first = errText(err);
-      // Only retry on a socket failure. If the TV answered (denied, timed out),
-      // a second attempt would just show another prompt.
-      if (!err.code) return send(res, 502, { error: first });
-      // Older firmware: plain WebSocket on 8001 without tokens.
-      remoteSend(false, keys, null, guard(function (err2, result2) {
-        if (!err2) return send(res, 200, { ok: true, token: result2.token, port: result2.port, sent: result2.sent });
-        send(res, 502, { error: '8002: ' + first + ' | 8001: ' + errText(err2) });
-      }));
-    }));
+    var via = query.via === 'lo' || query.via === 'lan' ? query.via : null;
+    lanAddress(guard(function (lanIp) {
+      var routesToTry = [];
+      function add(kind, host, secure) { if (host && (!via || via === kind)) routesToTry.push({ via: kind, host: host, secure: secure }); }
+      // Newer TVs may ignore requests from their own loopback address, so the
+      // TV's Wi-Fi address goes first; loopback stays as a fallback.
+      add('lan', lanIp, true); add('lo', '127.0.0.1', true); add('lan', lanIp, false); add('lo', '127.0.0.1', false);
+      if (via && !routesToTry.length) { via = null; add('lan', lanIp, true); add('lo', '127.0.0.1', true); add('lan', lanIp, false); add('lo', '127.0.0.1', false); }
+      var errors = [];
+      (function attempt(i) {
+        if (i >= routesToTry.length) return send(res, 502, { error: errors.join(' | '), lanIp: lanIp || null });
+        var r = routesToTry[i];
+        remoteSend(r.host, r.secure, keys, token, guard(function (err, result) {
+          if (!err) return send(res, 200, { ok: true, token: result.token, via: r.via, host: result.host, port: result.port, sent: result.sent });
+          errors.push(r.via + ':' + (r.secure ? 8002 : 8001) + ' ' + errText(err));
+          if (err.kind === 'denied') return send(res, 502, { error: errors.join(' | '), lanIp: lanIp || null });
+          attempt(i + 1);
+        }, function (e) { send(res, 500, { error: errText(e) }); }));
+      })(0);
+    }, function (e) { send(res, 500, { error: errText(e) }); }));
   },
 
   '/ping': function (req, res) {

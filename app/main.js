@@ -108,10 +108,14 @@
   function pressKeys(keys, name) {
     log('', 'keys ' + keys + ' … (answer Allow on the TV if asked)');
     var tok = savedToken();
-    get('/key?keys=' + encodeURIComponent(keys) + (tok ? '&token=' + encodeURIComponent(tok) : ''))
+    var via = '';
+    try { via = localStorage.getItem('xd.tvVia') || ''; } catch (e) { /* storage blocked */ }
+    get('/key?keys=' + encodeURIComponent(keys) + (tok ? '&token=' + encodeURIComponent(tok) : '') +
+        (via ? '&via=' + via : ''))
       .then(function (r) {
         saveToken(r.token);
-        log('ok', 'keys OK: ' + name + ' via port ' + r.port + (r.token ? ' (approved)' : ''));
+        try { if (r.via) localStorage.setItem('xd.tvVia', r.via); } catch (e) { /* storage blocked */ }
+        log('ok', 'keys OK: ' + name + ' via ' + r.via + ' ' + r.host + ':' + r.port + (r.token ? ' (approved)' : ''));
       })
       .catch(function (e) { log('bad', 'keys FAILED: ' + name + ' ' + e.message); });
   }
