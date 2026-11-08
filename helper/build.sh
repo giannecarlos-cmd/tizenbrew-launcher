@@ -1,6 +1,6 @@
 #!/bin/sh
-# Builds helper/dist/XDInput-unsigned.wgt (unsigned). The TizenBrew Installer re-signs it
-# with the owner's Samsung certificate when installing on Tizen 7+.
+# Local unsigned build, for inspection only (the TV rejects unsigned packages).
+# Installable signed packages come from .github/workflows/sign-helper.yml.
 set -e
 cd "$(dirname "$0")"
 mkdir -p dist
