@@ -11,7 +11,7 @@
 
 var fs = require('fs');
 
-var VERSION = '0.8.0';
+var VERSION = '0.9.0';
 
 function send(res, status, body, type) {
   res.writeHead(status, {
@@ -252,6 +252,7 @@ function validKeys(list) {
 // ---------------------------------------------------------------------------
 var appIndex = {};     // app id -> { iconPath, packageId }
 var iconCache = {};    // app id -> resolved file path (or '' when none found)
+var placeholderPaths = {}; // icon files shared by several apps
 var APP_ROOTS = ['/opt/usr/globalapps/', '/usr/apps/', '/opt/usr/apps/', '/opt/usr/home/owner/apps_rw/'];
 
 function isImage(name) { return /\.(png|jpe?g|webp)$/i.test(name); }
@@ -264,6 +265,7 @@ function findIconFile(pkg, cb) {
     var s = Math.min(size, 400000) / 1000;           // bigger is usually sharper
     if (/icon|logo/.test(n)) s += 500;               // named like an icon
     if (/splash|background|bg_|banner|preview|screenshot/.test(n)) s -= 800;
+    if (placeholderPaths[path]) s -= 5000;          // never the generic pinwheel
     if (/\/shared\/res\//.test(n)) s += 200;      // where Tizen apps keep icons
     return s;
   }
@@ -357,26 +359,46 @@ var routes = {
 
   // Every installed app, including hidden ones, so we can find system apps
   // such as the TV viewer (inputs) and Samsung TV Plus.
-  // /appicon?id=<app id>: the app's own icon, found as described above.
-  '/appicon': function (req, res, query) {
-    var id = String(query.id || '');
-    var info = appIndex[id];
-    if (!info) return send(res, 404, { error: 'unknown app (load /apps first)' });
-    if (iconCache[id] !== undefined) {
-      return iconCache[id] ? sendImage(res, iconCache[id]) : send(res, 404, { error: 'no icon found' });
-    }
-    var reported = info.iconPath ? String(info.iconPath).replace(/^file:\/\//, '') : '';
-    function fallback() {
+  // /icondiag?ids=a,b: how each app's icon was resolved (for troubleshooting).
+  '/icondiag': function (req, res, query) {
+    var ids = String(query.ids || '').split(',').slice(0, 20);
+    var out = [], pending = ids.length;
+    if (!pending) return send(res, 200, { apps: out });
+    ids.forEach(function (id, idx) {
+      var info = appIndex[id];
+      if (!info) { out[idx] = { id: id, error: 'unknown app' }; if (--pending === 0) send(res, 200, { apps: out }); return; }
       findIconFile(info.packageId || id.split('.')[0], function (found) {
-        iconCache[id] = found || '';
-        if (found) sendImage(res, found); else send(res, 404, { error: 'no icon found' });
+        out[idx] = { id: id, packageId: info.packageId, reported: info.iconPath, placeholder: info.placeholder, found: found || null };
+        if (--pending === 0) send(res, 200, { apps: out });
       });
+    });
+  },
+
+  // /appicon?id=<app id>[,<another id>]: the app's own icon, found as
+  // described above. With several ids, the first one that has an icon wins.
+  '/appicon': function (req, res, query) {
+    var ids = String(query.id || '').split(',').slice(0, 4);
+    function resolve(id, cb) {
+      var info = appIndex[id];
+      if (!info) return cb(null);
+      if (iconCache[id] !== undefined) return cb(iconCache[id] || null);
+      var reported = info.iconPath ? String(info.iconPath).replace(/^file:\/\//, '') : '';
+      function fallback() {
+        findIconFile(info.packageId || id.split('.')[0], function (found) { iconCache[id] = found || ''; cb(found || null); });
+      }
+      if (!reported || info.placeholder) return fallback();
+      fs.stat(reported, guard(function (e, st) {
+        if (!e && st && st.isFile() && st.size > 200) { iconCache[id] = reported; return cb(reported); }
+        fallback();
+      }, function () { fallback(); }));
     }
-    if (!reported) return fallback();
-    fs.stat(reported, guard(function (e, st) {
-      if (!e && st && st.isFile() && st.size > 200) { iconCache[id] = reported; return sendImage(res, reported); }
-      fallback();
-    }, function () { fallback(); }));
+    var known = false;
+    for (var k = 0; k < ids.length; k++) if (appIndex[ids[k]]) known = true;
+    if (!known) return send(res, 404, { error: 'unknown app (load /apps first)' });
+    (function next(i) {
+      if (i >= ids.length) return send(res, 404, { error: 'no icon found' });
+      resolve(ids[i], guard(function (path) { if (path) sendImage(res, path); else next(i + 1); }, function () { next(i + 1); }));
+    })(0);
   },
 
   '/apps': function (req, res) {
@@ -387,12 +409,20 @@ var routes = {
         try { self = tizen.application.getAppInfo().id; } catch (e) { /* no own id */ }
         allowedIcons = {};
         appIndex = {};
+        iconCache = {};
+        // An icon file shared by several apps is Samsung's generic placeholder
+        // (the pinwheel), not the app's own artwork.
+        var iconUse = {};
+        for (var k = 0; k < list.length; k++) if (list[k].iconPath) iconUse[list[k].iconPath] = (iconUse[list[k].iconPath] || 0) + 1;
+        placeholderPaths = {};
+        for (var pth in iconUse) if (iconUse[pth] > 1) placeholderPaths[String(pth).replace(/^file:\/\//, '')] = true;
         var apps = [];
         for (var i = 0; i < list.length; i++) {
           var a = list[i];
           if (a.id === self) continue;
           if (a.iconPath) allowedIcons[a.iconPath] = true;
-          appIndex[a.id] = { iconPath: a.iconPath || null, packageId: a.packageId || null };
+          appIndex[a.id] = { iconPath: a.iconPath || null, packageId: a.packageId || null,
+            placeholder: !!(a.iconPath && iconUse[a.iconPath] > 1) };
           apps.push({
             id: a.id,
             name: a.name,

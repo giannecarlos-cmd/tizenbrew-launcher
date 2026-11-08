@@ -27,12 +27,11 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
    Only transform and opacity animate, to stay light on the TV's GPU. */
 #wall { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 #wall .sky { position: absolute; inset: 0;
-  background: linear-gradient(180deg, var(--sky-1, #05070f) 0%, var(--sky-2, #0a1430) 45%, var(--ink) 100%);
-  transition: background 4s linear; }
+  background: linear-gradient(180deg, var(--sky-1, #05070f) 0%, var(--sky-2, #0a1430) 45%, var(--ink) 100%); }
 #wall .orb { position: absolute; left: 0; top: 0; width: 1400px; height: 900px; margin: -450px 0 0 -700px;
   background: radial-gradient(closest-side, var(--light, rgba(170, 190, 230, .28)), transparent);
   transform: translate(var(--light-x, 1300px), var(--light-y, 180px));
-  transition: transform 60s linear, background 4s linear; }
+  transition: transform 60s linear; will-change: transform; }
 #wall .shimmer { position: absolute; width: 1600px; height: 600px; border-radius: 50%; opacity: .5; will-change: transform;
   background: radial-gradient(closest-side, var(--light, rgba(170, 190, 230, .2)), transparent 70%); }
 #wall .shimmer-a { left: -200px; top: 520px; animation: shimmerA 46s ease-in-out infinite alternate; }
@@ -41,39 +40,32 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 @keyframes shimmerB { from { transform: translate(0, 0) scale(1.1); } to { transform: translate(-420px, 40px) scale(.95); } }
 /* The interactive light: glides to the focused tile, tinted by that app. */
 #wall .focuslight { position: absolute; left: 0; top: 0; width: 1100px; height: 760px; margin: -380px 0 0 -550px;
-  background: radial-gradient(closest-side, var(--focus-c, rgba(159, 211, 230, .22)), transparent);
-  transform: translate(var(--focus-x, 960px), var(--focus-y, 800px));
-  transition: transform 700ms cubic-bezier(.2, .7, .2, 1), background 600ms ease; }
-/* A whisper of grain keeps the dark gradients from banding on big panels. */
-#wall .grain { position: absolute; inset: 0; opacity: .05;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.9'/></svg>"); }
-
+  background: radial-gradient(closest-side, rgba(159, 211, 230, .22), transparent);
+  transform: translate(960px, 800px); will-change: transform;
+  transition: transform 520ms cubic-bezier(.2, .7, .2, 1); }
 .topbar { position: absolute; z-index: 5; left: var(--safe); right: var(--safe); top: 44px;
   display: flex; justify-content: space-between; align-items: baseline; }
 .mark { display: flex; align-items: center; gap: 12px; font-family: var(--sans); font-weight: 600; font-size: 30px; letter-spacing: .5px; color: var(--mist); }
 .mark-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent, #9fd3e6);
-  box-shadow: 0 0 14px 3px var(--light, rgba(159, 211, 230, .5)); transition: background 4s linear; }
+  box-shadow: 0 0 14px 3px var(--light, rgba(159, 211, 230, .5)); }
 .clock { display: flex; gap: 18px; align-items: baseline; }
 .clock #day { font-size: 24px; color: var(--fog); }
 .clock #time { font-family: var(--serif); font-size: 44px; font-weight: 500; font-variant-numeric: tabular-nums; }
 
-#home { position: absolute; left: 0; right: 0; top: 0; transition: transform 380ms cubic-bezier(.2, .7, .2, 1); }
+#home { position: absolute; left: 0; right: 0; top: 0; will-change: transform; transition: transform 260ms cubic-bezier(.2, .7, .2, 1); }
 
 /* ---- Hero: the living tide ---- */
 .hero { position: relative; height: 600px; margin: 0; overflow: hidden; }
 #home { z-index: 1; }
 .tide { position: absolute; inset: 0;
-  background: linear-gradient(180deg, var(--sky-1, #0a1c33) 0%, var(--sky-2, #0b2a45) 42%, var(--sky-3, #0e3a57) 64%, rgba(5, 8, 15, .2) 100%);
-  transition: background 4s linear; }
+  background: linear-gradient(180deg, var(--sky-1, #0a1c33) 0%, var(--sky-2, #0b2a45) 42%, var(--sky-3, #0e3a57) 64%, rgba(5, 8, 15, 0) 100%); }
 .tide .glow { position: absolute; left: 52%; top: 18%; width: 900px; height: 520px; border-radius: 50%;
   background: radial-gradient(closest-side, var(--light, rgba(159, 211, 230, .38)), transparent);
-  transform: translateX(var(--glow-x, 0px)); transition: transform 60s linear, background 4s linear; }
+  transform: translateX(var(--glow-x, 0px)); transition: transform 60s linear; }
 .swell { position: absolute; left: 0; width: 200%; height: 400px; bottom: -40px; will-change: transform; }
 .swell path { fill: currentColor; }
 .swell-1 { color: var(--swell-1, rgba(19, 66, 96, .55)); bottom: 40px; animation: drift 38s linear infinite; }
 .swell-2 { color: var(--swell-2, rgba(12, 45, 70, .75)); bottom: 0; animation: drift 52s linear infinite reverse; }
-.swell path { transition: fill 4s linear; }
-.swell-3 { color: rgba(5, 8, 15, .55); bottom: -50px; animation: drift 70s linear infinite; }
 /* Light catching the water: a soft band that breathes slowly. */
 .sparkle { position: absolute; left: 44%; right: 8%; top: 52%; height: 70px;
   background: radial-gradient(60% 50% at 50% 50%, rgba(232, 238, 245, .22), transparent 70%);
@@ -81,9 +73,8 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 @keyframes drift { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @keyframes breathe { 0%, 100% { opacity: .35; } 50% { opacity: .85; } }
 /* Fade the hero into the page. */
-/* Fade the hero's water into the living wallpaper below, with no seam. */
-.tide { -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
-  mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%); }
+/* Ambient motion pauses once you scroll past the hero. */
+body.browsing .swell, body.browsing .sparkle { animation-play-state: paused; }
 
 .hero-copy { position: absolute; z-index: 2; left: var(--safe); bottom: 96px; width: 900px; transition: opacity 260ms ease; }
 /* Once the shelves have focus, the hero becomes quiet scenery. */
@@ -91,14 +82,14 @@ body.browsing .hero-copy { opacity: 0; }
 .topbar::before { content: ''; position: absolute; left: calc(-1 * var(--safe)); right: calc(-1 * var(--safe)); top: -44px; height: 150px; z-index: -1;
   background: linear-gradient(180deg, rgba(5, 8, 15, .85), rgba(5, 8, 15, 0)); opacity: 0; transition: opacity 260ms ease; }
 body.browsing .topbar::before { opacity: 1; }
-.hero-kicker { margin: 0 0 10px; font-size: 26px; font-weight: 600; color: var(--accent, var(--sea)); transition: color 4s linear; }
+.hero-kicker { margin: 0 0 10px; font-size: 26px; font-weight: 600; color: var(--accent, var(--sea)); }
 .hero-title { margin: 0; font-family: var(--serif); font-weight: 600; font-size: 112px; line-height: .98;
   letter-spacing: -2px; font-variation-settings: 'opsz' 144; }
 .hero-sub { margin: 18px 0 34px; font-size: 28px; line-height: 1.35; color: #c4cfdb; max-width: 38ch; }
 .hero-actions { display: flex; gap: 20px; }
 .btn { height: 70px; padding: 0 36px; border-radius: 35px; font-size: 26px; font-weight: 600;
   background: rgba(232, 238, 245, .14); color: var(--mist);
-  transition: transform 180ms ease, background 180ms ease, color 180ms ease, box-shadow 180ms ease; }
+  transition: transform 140ms ease; }
 .btn.primary { background: rgba(232, 238, 245, .92); color: #08111d; }
 .btn.focused { transform: scale(1.08); background: #fff; color: #08111d;
   box-shadow: 0 16px 40px rgba(0, 0, 0, .5), 0 0 0 4px var(--light, rgba(159, 211, 230, .55)); }
@@ -107,36 +98,36 @@ body.browsing .topbar::before { opacity: 1; }
 .shelf { position: relative; padding: 0 0 0 var(--safe); margin-top: 8px; }
 .shelf + .shelf { margin-top: 30px; }
 .shelf h2 { margin: 0 0 18px; font-size: 30px; font-weight: 600; color: var(--mist); }
-.rail { display: flex; gap: var(--gap); padding: 14px 0 64px 0; transition: transform 320ms cubic-bezier(.2, .7, .2, 1); }
+.rail { display: flex; gap: var(--gap); padding: 14px 0 64px 0; will-change: transform; transition: transform 220ms cubic-bezier(.2, .7, .2, 1); }
 
 .tile { position: relative; flex: 0 0 var(--tile-w); }
-.tile .face { position: relative; width: var(--tile-w); height: var(--tile-h); border-radius: 22px; overflow: hidden;
+.tile .face { position: relative; width: var(--tile-w); height: var(--tile-h); border-radius: 22px; will-change: transform;
   background:
     radial-gradient(120% 140% at 18% 0%, var(--c-wash, rgba(42, 59, 85, .55)), transparent 62%),
     linear-gradient(160deg, var(--tide-2), var(--tide));
-  box-shadow: 0 10px 26px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(232, 238, 245, .06);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(232, 238, 245, .06);
   display: flex; align-items: center; justify-content: center;
-  transition: transform 220ms cubic-bezier(.2, .7, .2, 1), box-shadow 220ms ease; }
-.tile .face img { width: 112px; height: 112px; border-radius: 26px; object-fit: cover;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, .45); }
+  transition: transform 160ms cubic-bezier(.2, .7, .2, 1); }
+/* Focus ring and glow, drawn once and faded in. */
+.tile .face::before { content: ''; position: absolute; inset: 0; border-radius: 22px; opacity: 0;
+  box-shadow: 0 0 0 4px rgba(232, 238, 245, .9), 0 22px 40px rgba(0, 0, 0, .5), 0 0 40px var(--c-glow, rgba(159, 211, 230, .45));
+  transition: opacity 160ms ease; }
+.tile.focused .face::before { opacity: 1; }
+.tile .face img { position: relative; width: 112px; height: 112px; border-radius: 26px; object-fit: cover;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, .45); }
 .tile .face .mono { width: 112px; height: 112px; border-radius: 28px; display: flex; align-items: center; justify-content: center;
   font-family: var(--serif); font-size: 58px; font-weight: 600; color: #fff;
   background: linear-gradient(150deg, var(--c-light, #4a5b76), var(--c-dark, #28354a));
-  box-shadow: 0 10px 24px rgba(0, 0, 0, .45); }
+  box-shadow: 0 8px 18px rgba(0, 0, 0, .45); position: relative; }
 .tile .face .glyph { width: 112px; height: 112px; display: flex; align-items: center; justify-content: center; }
 .tile .face .glyph svg { width: 92px; height: 92px; }
 .tile .label { margin-top: 16px; font-size: 24px; font-weight: 500; color: var(--fog);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color 200ms ease, transform 220ms ease; }
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile .note { font-size: 19px; color: var(--fog); opacity: .8; margin-top: 4px; }
 
-/* One focus treatment: lift, a cool light edge, and a single light sweep. */
-.tile.focused .face { transform: scale(1.1) translateY(-6px);
-  box-shadow: 0 34px 60px rgba(0, 0, 0, .6), 0 0 0 4px rgba(232, 238, 245, .9), 0 0 60px var(--c-glow, rgba(159, 211, 230, .45)); }
-.tile.focused .label { color: var(--mist); transform: translateY(10px); }
-.tile .face::after { content: ''; position: absolute; inset: -40% auto -40% -60%; width: 40%; transform: rotate(18deg) translateX(0);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .22), transparent); opacity: 0; }
-.tile.focused .face::after { animation: sweep 900ms ease-out 120ms 1; }
-@keyframes sweep { 0% { opacity: 0; transform: rotate(18deg) translateX(0); } 20% { opacity: 1; } 100% { opacity: 0; transform: rotate(18deg) translateX(1100px); } }
+/* One focus treatment: the tile lifts and its light edge fades in. */
+.tile.focused .face { transform: scale(1.08) translateY(-6px); }
+.tile.focused .label { color: var(--mist); }
 
 .tile.soon .face { background: linear-gradient(160deg, #0f1a2b, #0a121e); box-shadow: inset 0 0 0 2px rgba(138, 151, 168, .25); }
 .tile.missing .face { opacity: .45; }
@@ -149,6 +140,5 @@ body.browsing .topbar::before { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
   .swell, .sparkle, #wall .shimmer { animation: none; }
   #wall .focuslight, #wall .orb { transition: none; }
-  .tile.focused .face::after { animation: none; }
   #home, .rail, .tile .face, .btn { transition: none; }
 }

@@ -23,7 +23,7 @@
     crave:      { label: 'Crave', kind: 'app', ids: ['SKvHIMBcln.CraveTV'], names: [/^crave/i], color: '#1f5bff' },
     youtube:    { label: 'YouTube', kind: 'app', ids: ['9Ur5IzDKqV.TizenYouTube'], names: [/^youtube$/i], color: '#ff2a2a' },
     cosmogo:    { label: 'CosmoGO', kind: 'app', ids: ['CDMPWSBGDH.cineplex'], names: [/cosmo/i, /cineplex/i], color: '#6b46d6' },
-    tvplus:     { label: 'Samsung TV Plus', kind: 'viewer', iconFrom: ['com.samsung.tv.tvPlusDeeplinker'], color: '#2a9bd6' },
+    tvplus:     { label: 'Samsung TV Plus', kind: 'viewer', iconFrom: ['com.samsung.tv.tvplus', 'com.samsung.tv.tvPlusDeeplinker'], color: '#2a9bd6' },
     oceanvibes: { label: 'Ocean Vibes', kind: 'viewer', color: '#2a9bd6' },
     freegames:  { label: 'Free Games', kind: 'app', ids: ['FDLMApISUt.PlayWorks'], names: [/free games/i], color: '#e2559c' },
     grove:      { label: 'Grove Guardians', kind: 'soon', note: 'Coming soon', color: '#3e8e5a', glyph: 'leaf' },
@@ -113,10 +113,10 @@
     var t = TILES[key];
     if (t.glyph) return '<div class="glyph">' + GLYPHS[t.glyph] + '</div>';
     var app = state.resolved[key];
-    if (!app && t.iconFrom) app = appById(t.iconFrom[0]);
-    if (app) {
+    var ids = app ? [app.id] : (t.iconFrom || []).filter(appById);
+    if (ids.length) {
       // The developer's own icon, as installed on this TV.
-      return '<img alt="" src="' + API + '/appicon?id=' + encodeURIComponent(app.id) + '" ' +
+      return '<img alt="" src="' + API + '/appicon?id=' + encodeURIComponent(ids.join(',')) + '" ' +
         'onerror="this.outerHTML=\'<div class=mono>' + esc(t.label.charAt(0)) + '</div>\'">';
     }
     return '<div class="mono">' + esc(t.label.charAt(0)) + '</div>';
@@ -139,66 +139,75 @@
       });
       $(railId).innerHTML = RAILS[railId].map(tileHtml).join('');
     });
+    rowCache = null;
+    focusedEl = null;
   }
 
   // ---- Focus and navigation ----
+  var rowCache = null;
   function rows() {
+    if (rowCache) return rowCache;
     var out = [Array.prototype.slice.call(document.querySelectorAll('.hero-actions .focusable'))];
     ['railWatch', 'railPlay', 'railMore'].forEach(function (id) {
       out.push(Array.prototype.slice.call($(id).querySelectorAll('.focusable')));
     });
+    rowCache = out;
     return out;
+  }
+
+  var focusedEl = null;
+  var railShift = {};   // rail id -> current translateX
+  var homeShift = 0;
+  var wallLight = null;
+  var lastGlow = '';
+
+  // Position of an element inside #home, ignoring transforms (layout values only).
+  function offsetIn(el) {
+    var x = 0, y = 0, home = $('home');
+    while (el && el !== home && el !== document.body) { x += el.offsetLeft; y += el.offsetTop; el = el.offsetParent; }
+    return { x: x, y: y };
   }
 
   function applyFocus(save) {
     var all = rows();
     if (!all[state.row] || !all[state.row].length) { state.row = 0; state.col = 0; }
     state.col = Math.max(0, Math.min(state.col, all[state.row].length - 1));
-    document.querySelectorAll('.focused').forEach(function (el) { el.classList.remove('focused'); });
     var el = all[state.row][state.col];
     if (!el) return;
-    el.classList.add('focused');
 
-    // Vertical: the hero stays put for the top row, then the shelves slide up.
-    var shift = 0;
+    // Read layout first.
+    var shift = 0, rail = null, railX = 0;
     if (state.row > 0) {
-      var shelf = el.closest('.shelf');
-      shift = Math.max(0, shelf.offsetTop - 250);
-    }
-    $('home').style.transform = 'translateY(' + (-shift) + 'px)';
-    document.body.classList.toggle('browsing', state.row > 0);
-
-    // Horizontal: keep the focused tile inside the safe area.
-    if (state.row > 0) {
-      var rail = el.parentNode;
+      shift = Math.max(0, el.closest('.shelf').offsetTop - 250);
+      rail = el.parentNode;
       var step = el.offsetWidth + 28;
       var visible = Math.floor((1920 - 160) / step);
-      var first = Math.max(0, state.col - visible + 2);
-      rail.style.transform = 'translateX(' + (-first * step) + 'px)';
+      railX = -Math.max(0, state.col - visible + 2) * step;
     }
+    var pos = offsetIn(el);
+    var face = el.querySelector('.face') || el;
+    var cx = pos.x + (rail ? railX : 0) + face.offsetWidth / 2;
+    var cy = pos.y - shift + face.offsetHeight / 2;
+
+    // Then write.
+    if (focusedEl && focusedEl !== el) focusedEl.classList.remove('focused');
+    el.classList.add('focused');
+    focusedEl = el;
+    if (shift !== homeShift) { $('home').style.transform = 'translateY(' + (-shift) + 'px)'; homeShift = shift; }
+    document.body.classList.toggle('browsing', state.row > 0);
+    if (rail && railShift[rail.id] !== railX) { rail.style.transform = 'translateX(' + railX + 'px)'; railShift[rail.id] = railX; }
 
     // The wallpaper's soft light glides to the focused tile, in its colour.
-    var key = el.getAttribute('data-tile');
-    var t = TILES[key];
-    document.documentElement.style.setProperty('--focus-c', t ? rgba(t.color, 0.30) : 'var(--light)');
-    followLight(el);
+    var t = TILES[el.getAttribute('data-tile')];
+    if (!wallLight) wallLight = document.querySelector('#wall .focuslight');
+    if (wallLight) {
+      wallLight.style.transform = 'translate(' + Math.round(cx) + 'px,' + Math.round(cy) + 'px)';
+      var glow = t ? rgba(t.color, 0.30) : 'rgba(159,211,230,.22)';
+      if (glow !== lastGlow) { wallLight.style.background = 'radial-gradient(closest-side, ' + glow + ', transparent)'; lastGlow = glow; }
+    }
 
     state.lastCol[state.row] = state.col;
     if (save !== false) store('xd.focus', state.row + ',' + state.col);
-  }
-
-  // Track the element while the page and rail slide into place.
-  var lightTimers = [];
-  function followLight(el) {
-    lightTimers.forEach(clearTimeout);
-    function place() {
-      var r = el.getBoundingClientRect();
-      var root = document.documentElement.style;
-      root.setProperty('--focus-x', Math.round(r.left + r.width / 2) + 'px');
-      root.setProperty('--focus-y', Math.round(r.top + r.height / 2) + 'px');
-    }
-    place();
-    lightTimers = [180, 400].map(function (ms) { return setTimeout(place, ms); });
   }
 
   // ---- Living wallpaper: the light through the day ----
@@ -222,6 +231,12 @@
     return 'rgba(' + [0, 1, 2].map(function (i) { return Math.round(a[i] + (b[i] - a[i]) * t); }).join(',') + ',' +
       (a[3] + (b[3] - a[3]) * t).toFixed(3) + ')';
   }
+  var lastPhase = {};
+  function setVar(name, value) {
+    if (lastPhase[name] === value) return;
+    lastPhase[name] = value;
+    document.documentElement.style.setProperty(name, value);
+  }
   function applyPhase(d) {
     var mins = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
     var i = 0;
@@ -229,25 +244,24 @@
     var a = PHASES[i], b = PHASES[i + 1];
     var t = (mins - a[0]) / (b[0] - a[0]);
     t = t * t * (3 - 2 * t); // ease between phases
-    var root = document.documentElement.style;
     var sky3 = mixHex(a[3], b[3], t);
-    root.setProperty('--sky-1', mixHex(a[1], b[1], t));
-    root.setProperty('--sky-2', mixHex(a[2], b[2], t));
-    root.setProperty('--sky-3', sky3);
-    root.setProperty('--light', mixRgba(a[4], b[4], t));
-    root.setProperty('--accent', mixHex(a[5], b[5], t));
+    setVar('--sky-1', mixHex(a[1], b[1], t));
+    setVar('--sky-2', mixHex(a[2], b[2], t));
+    setVar('--sky-3', sky3);
+    setVar('--light', mixRgba(a[4], b[4], t));
+    setVar('--accent', mixHex(a[5], b[5], t));
     var low = sky3.match(/\d+/g).map(Number);
-    root.setProperty('--swell-1', 'rgba(' + low.map(function (v) { return Math.round(v * 1.1); }).join(',') + ',.55)');
-    root.setProperty('--swell-2', 'rgba(' + low.map(function (v) { return Math.round(v * .6); }).join(',') + ',.8)');
+    setVar('--swell-1', 'rgba(' + low.map(function (v) { return Math.round(v * 1.1); }).join(',') + ',.4)');
+    setVar('--swell-2', 'rgba(' + low.map(function (v) { return Math.round(v * .6); }).join(',') + ',.35)');
     // The light travels across the top like a sun by day and a moon by night.
     var dayT = Math.max(0, Math.min(1, (mins - 360) / (1260 - 360)));     // 6:00 to 21:00
     var nightT = mins >= 1260 ? (mins - 1260) / 540 : mins < 360 ? (mins + 180) / 540 : null;
     var p = nightT == null ? dayT : nightT;
     var x = 260 + p * 1400;
     var y = 260 - Math.sin(p * Math.PI) * 170;
-    root.setProperty('--light-x', Math.round(x) + 'px');
-    root.setProperty('--light-y', Math.round(y) + 'px');
-    root.setProperty('--glow-x', Math.round((p - 0.5) * 500) + 'px');
+    setVar('--light-x', Math.round(x) + 'px');
+    setVar('--light-y', Math.round(y) + 'px');
+    setVar('--glow-x', Math.round((p - 0.5) * 500) + 'px');
   }
 
   function move(dx, dy) {
@@ -326,6 +340,7 @@
   }
 
   // ---- Clock and evening mode ----
+  var lastPhaseMinute = -1;
   var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   function tick() {
     var d = new Date();
@@ -335,7 +350,7 @@
     $('day').textContent = DAYS[d.getDay()];
     var mins = h * 60 + m, bed = BEDTIME.h * 60 + BEDTIME.m;
     var evening = mins >= bed || h < 5;
-    applyPhase(d);
+    if (m !== lastPhaseMinute) { lastPhaseMinute = m; applyPhase(d); }
     document.body.classList.toggle('evening', evening);
     $('heroKicker').textContent = evening ? 'Wind-down time' : 'Tonight at ' + (BEDTIME.h % 12 || 12) + ':' + (BEDTIME.m < 10 ? '0' : '') + BEDTIME.m;
     $('heroSub').textContent = evening
