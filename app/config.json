@@ -142,10 +142,8 @@
       "title": "Favorites",
       "auto": true,
       "size": "large",
-      "max": 6,
+      "max": 4,
       "from": [
-        "tvbox",
-        "oceanvibes",
         "netflix",
         "disney",
         "prime",
@@ -156,7 +154,7 @@
     },
     {
       "id": "apps",
-      "title": "All apps",
+      "title": "More to watch",
       "tiles": [
         "netflix",
         "disney",
@@ -164,9 +162,9 @@
         "crave",
         "youtube",
         "cosmogo",
-        "tvplus",
-        "tvbox"
-      ]
+        "tvplus"
+      ],
+      "skipShown": true
     },
     {
       "id": "play",

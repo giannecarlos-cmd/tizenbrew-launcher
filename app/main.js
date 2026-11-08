@@ -193,7 +193,10 @@
   }
   function lastUsed() {
     var u = usage(), best = null;
-    Object.keys(u).forEach(function (k) { if (TILES[k] && (!best || u[k].last > u[best].last)) best = k; });
+    Object.keys(u).forEach(function (k) {
+      if (!TILES[k] || k === 'tvbox' || k === 'oceanvibes') return; // those two always have Stage buttons
+      if (!best || u[k].last > u[best].last) best = k;
+    });
     return best ? { key: best, at: u[best].last } : null;
   }
 
@@ -242,8 +245,13 @@
 
   function renderShelves() {
     resolveAll();
+    var shown = {};
     $('shelves').innerHTML = CFG.shelves.map(function (sh) {
       var keys = sh.auto ? favorites(sh) : sh.tiles;
+      // A shelf can skip tiles that an earlier shelf already shows.
+      if (sh.skipShown) keys = keys.filter(function (k) { return !shown[k]; });
+      keys.forEach(function (k) { shown[k] = true; });
+      if (!keys.length) return '';
       return '<section class="shelf size-' + (sh.size || 'normal') + '" data-shelf="' + sh.id + '">' +
         '<h2>' + esc(sh.title) + '</h2><div class="rail" id="rail-' + sh.id + '">' +
         keys.map(function (k) { return tileHtml(k, sh.size); }).join('') + '</div></section>';
@@ -272,10 +280,10 @@
         actions: [['oceanvibes', 'Watch now', true], ['tvbox', 'Open TV box']] };
     }
     var last = lastUsed();
-    if (last && last.key !== 'oceanvibes' && Date.now() - last.at < 36e5 * 24) {
+    if (last && last.key !== 'oceanvibes' && last.key !== 'tvbox' && Date.now() - last.at < 36e5 * 24) {
       var t = TILES[last.key];
       return { id: 'resume', scene: 'art', art: last.key, kicker: 'Pick up where you left off', title: t.label,
-        sub: 'Opened ' + ago(last.at) + '.', actions: [[last.key, 'Open ' + t.label, true], ['oceanvibes', 'Ocean Vibes']] };
+        sub: 'Opened ' + ago(last.at) + '.', actions: [[last.key, 'Open ' + t.label, true], ['oceanvibes', 'Ocean Vibes'], ['tvbox', 'TV box']] };
     }
     var box = state.sources && (state.sources.connected || []).some(function (s) { return s.type === 'HDMI' && s.number === 1; });
     if (box) {
