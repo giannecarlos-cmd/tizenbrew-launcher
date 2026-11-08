@@ -1,4 +1,4 @@
-// XD Input: switches the TV's input. XD Launcher opens it with app-control data
+// Lumen Input: switches the TV's input. The Lumen launcher opens it with app-control data
 // source=HDMI1, mode=viewer|exit|show and back=<app id to return to on Back>.
 // Opened from the Apps list, it shows a test screen with every connected input
 // and each switching method.
@@ -9,7 +9,15 @@
   'use strict';
   if (window.__xdInputStarted) return; // never run twice
   window.__xdInputStarted = true;
-  window.XD_INPUT_VERSION = '1.1.0';
+  window.XD_INPUT_VERSION = '1.2.0';
+  // On-screen name (the packaged page still says the old name until a reinstall).
+  try {
+    document.title = 'Lumen Input';
+    var h1 = document.querySelector('#ui h1');
+    if (h1) h1.textContent = 'Lumen Input';
+    var sub = document.querySelector('#ui p.sub');
+    if (sub) sub.textContent = 'Pick an input and a method to test switching. Back returns to where you came from.';
+  } catch (e) { /* page layout changed */ }
   var app = tizen.application.getCurrentApplication();
   function $(id) { return document.getElementById(id); }
   function status(msg) { $('status').textContent = msg; }
@@ -71,7 +79,7 @@
     });
   }
 
-  // Back goes to the app that opened us (XD Launcher passes TizenBrew's id),
+  // Back goes to the app that opened us (Lumen passes TizenBrew's id),
   // otherwise just closes, which lands on the TV's home screen.
   function goBack() {
     if (document.body.classList.contains('showing')) {
@@ -89,7 +97,7 @@
 
   var req = readRequest();
   if (req.source) {
-    // Silent run from XD Launcher.
+    // Silent run from the Lumen launcher.
     document.body.classList.add('silent');
     switchTo(req.source, req.mode || 'viewer', function (err, msg) {
       if (err) {

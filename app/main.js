@@ -1,4 +1,4 @@
-// XD Launcher home screen.
+// Lumen home screen.
 //
 // Loaded by launcher.html from the newest commit. Talks to the service bridge
 // on 127.0.0.1:8190 (see service/core.js) to list apps, fetch icons and launch.
@@ -14,7 +14,7 @@
 
   // ---- What the launcher shows ----
   // kind: app (launch by id/name), viewer (live TV, resumes the TV Plus channel),
-  // input (XD Input helper), soon (placeholder), action (built-in).
+  // input (input helper app), soon (placeholder), action (built-in).
   var TILES = {
     tvbox:      { label: 'TV box', kind: 'input', source: 'HDMI1', color: '#3f6fa8', glyph: 'hdmi' },
     netflix:    { label: 'Netflix', kind: 'app', ids: ['org.tizen.netflix-app'], names: [/^netflix$/i], color: '#e50914' },
@@ -176,13 +176,77 @@
       rail.style.transform = 'translateX(' + (-first * step) + 'px)';
     }
 
-    // Tint the room with the focused app's colour.
+    // The wallpaper's soft light glides to the focused tile, in its colour.
     var key = el.getAttribute('data-tile');
     var t = TILES[key];
-    document.body.style.setProperty('--tint', t ? rgba(t.color, 0.35) : 'transparent');
+    document.documentElement.style.setProperty('--focus-c', t ? rgba(t.color, 0.30) : 'var(--light)');
+    followLight(el);
 
     state.lastCol[state.row] = state.col;
     if (save !== false) store('xd.focus', state.row + ',' + state.col);
+  }
+
+  // Track the element while the page and rail slide into place.
+  var lightTimers = [];
+  function followLight(el) {
+    lightTimers.forEach(clearTimeout);
+    function place() {
+      var r = el.getBoundingClientRect();
+      var root = document.documentElement.style;
+      root.setProperty('--focus-x', Math.round(r.left + r.width / 2) + 'px');
+      root.setProperty('--focus-y', Math.round(r.top + r.height / 2) + 'px');
+    }
+    place();
+    lightTimers = [180, 400].map(function (ms) { return setTimeout(place, ms); });
+  }
+
+  // ---- Living wallpaper: the light through the day ----
+  // Each phase is [minute of day, sky top, sky middle, sky low, light, accent].
+  // Everything stays dark; the temperature and brightness of the light change.
+  var PHASES = [
+    [0,    '#04060d', '#0a1330', '#0d1b3a', [170, 190, 230, 0.26], '#b3c3ee'], // deep night, moonlight
+    [330,  '#0a0b1a', '#1a1b38', '#33284a', [228, 172, 196, 0.28], '#e7aec0'], // first light
+    [480,  '#06131f', '#0c2a44', '#103d5a', [170, 222, 240, 0.34], '#9fd3e6'], // morning
+    [780,  '#051726', '#0a3149', '#0e4762', [192, 236, 246, 0.38], '#a6e3ee'], // midday
+    [1020, '#0c111f', '#272035', '#45303f', [240, 192, 132, 0.34], '#f0bf86'], // golden hour
+    [1170, '#130d1d', '#2a1b32', '#2b3150', [232, 168, 103, 0.40], '#e8a867'], // bedtime, 7:30
+    [1320, '#060914', '#0f1832', '#132443', [160, 182, 232, 0.28], '#b3c3ee'], // night
+    [1440, '#04060d', '#0a1330', '#0d1b3a', [170, 190, 230, 0.26], '#b3c3ee']
+  ];
+  function mixHex(a, b, t) {
+    var x = rgb(a), y = rgb(b);
+    return 'rgb(' + [0, 1, 2].map(function (i) { return Math.round(x[i] + (y[i] - x[i]) * t); }).join(',') + ')';
+  }
+  function mixRgba(a, b, t) {
+    return 'rgba(' + [0, 1, 2].map(function (i) { return Math.round(a[i] + (b[i] - a[i]) * t); }).join(',') + ',' +
+      (a[3] + (b[3] - a[3]) * t).toFixed(3) + ')';
+  }
+  function applyPhase(d) {
+    var mins = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+    var i = 0;
+    while (i < PHASES.length - 2 && mins >= PHASES[i + 1][0]) i++;
+    var a = PHASES[i], b = PHASES[i + 1];
+    var t = (mins - a[0]) / (b[0] - a[0]);
+    t = t * t * (3 - 2 * t); // ease between phases
+    var root = document.documentElement.style;
+    var sky3 = mixHex(a[3], b[3], t);
+    root.setProperty('--sky-1', mixHex(a[1], b[1], t));
+    root.setProperty('--sky-2', mixHex(a[2], b[2], t));
+    root.setProperty('--sky-3', sky3);
+    root.setProperty('--light', mixRgba(a[4], b[4], t));
+    root.setProperty('--accent', mixHex(a[5], b[5], t));
+    var low = sky3.match(/\d+/g).map(Number);
+    root.setProperty('--swell-1', 'rgba(' + low.map(function (v) { return Math.round(v * 1.1); }).join(',') + ',.55)');
+    root.setProperty('--swell-2', 'rgba(' + low.map(function (v) { return Math.round(v * .6); }).join(',') + ',.8)');
+    // The light travels across the top like a sun by day and a moon by night.
+    var dayT = Math.max(0, Math.min(1, (mins - 360) / (1260 - 360)));     // 6:00 to 21:00
+    var nightT = mins >= 1260 ? (mins - 1260) / 540 : mins < 360 ? (mins + 180) / 540 : null;
+    var p = nightT == null ? dayT : nightT;
+    var x = 260 + p * 1400;
+    var y = 260 - Math.sin(p * Math.PI) * 170;
+    root.setProperty('--light-x', Math.round(x) + 'px');
+    root.setProperty('--light-y', Math.round(y) + 'px');
+    root.setProperty('--glow-x', Math.round((p - 0.5) * 500) + 'px');
   }
 
   function move(dx, dy) {
@@ -225,7 +289,7 @@
       var tb = tizenBrewId();
       if (tb) data += '|back:' + tb;
       return get('/appcontrol?id=' + encodeURIComponent(HELPER_ID) + '&data=' + encodeURIComponent(data))
-        .catch(function () { toast('The TV box needs the XD Input helper. Open Diagnostics to check it.'); });
+        .catch(function () { toast('The TV box needs the input helper. Open Diagnostics to check it.'); });
     }
     var app = state.resolved[key];
     if (!app) return toast(t.label + ' is not installed on this TV.');
@@ -270,6 +334,7 @@
     $('day').textContent = DAYS[d.getDay()];
     var mins = h * 60 + m, bed = BEDTIME.h * 60 + BEDTIME.m;
     var evening = mins >= bed || h < 5;
+    applyPhase(d);
     document.body.classList.toggle('evening', evening);
     $('heroKicker').textContent = evening ? 'Wind-down time' : 'Tonight at ' + (BEDTIME.h % 12 || 12) + ':' + (BEDTIME.m < 10 ? '0' : '') + BEDTIME.m;
     $('heroSub').textContent = evening
@@ -300,6 +365,7 @@
 
   // ---- Start ----
   window.XD_MODE = 'home';
+  document.title = 'Lumen';
   tick();
   setInterval(tick, 15000);
   renderRails();

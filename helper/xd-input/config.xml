@@ -5,8 +5,8 @@
   <tizen:profile name="tv-samsung"/>
   <content src="index.html"/>
   <icon src="icon.png"/>
-  <name>XD Input</name>
-  <description>Switches the TV to an input (HDMI) for XD Launcher.</description>
+  <name>Lumen Input</name>
+  <description>Switches the TV to an input (HDMI) for the Lumen launcher.</description>
   <feature name="http://tizen.org/feature/screen.size.all"/>
   <access origin="https://cdn.jsdelivr.net" subdomains="true"/>
   <access origin="https://api.github.com" subdomains="true"/>

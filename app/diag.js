@@ -103,7 +103,7 @@
     var head = '<h3>Inputs<small>';
     if (!s) return head + 'checking…</small></h3>';
     var helper = state.apps.some(function (a) { return a.id === HELPER_ID; });
-    head += 'via XD Input helper: ' + (helper ? 'installed' : 'NOT installed') +
+    head += 'via input helper: ' + (helper ? 'installed' : 'NOT installed') +
       (s.current ? ' · now: ' + esc(s.current.type + ' ' + (s.current.number || '')) : '') +
       (s.error ? ' · ' + esc(s.error) : '') + '</small></h3>';
     var list = [];
@@ -119,7 +119,7 @@
     }).join('') + '</div>';
   }
 
-  // Inputs open the XD Input helper app, which has the TV-window permission
+  // Inputs open the input helper app, which has the TV-window permission
   // the service lacks. "show" keeps the input on screen inside the helper;
   // Back closes it and returns here. Red uses "exit" mode instead.
   var HELPER_ID = 'XDInputApp.XDInput';
@@ -137,10 +137,10 @@
     var data = 'source:' + type + num + '|mode:' + mode;
     var tb = tizenBrewId();
     if (tb) data += '|back:' + tb; // Back in the helper returns to TizenBrew (this launcher)
-    log('', 'XD Input: ' + name + ' (' + mode + ') …');
+    log('', 'Input helper: ' + name + ' (' + mode + ') …');
     get('/appcontrol?id=' + encodeURIComponent(HELPER_ID) + '&data=' + encodeURIComponent(data))
-      .then(function () { log('ok', 'XD Input opened: ' + name + ' (' + mode + ')'); })
-      .catch(function (e) { log('bad', 'XD Input FAILED: ' + name + ' ' + e.message); });
+      .then(function () { log('ok', 'Input helper opened: ' + name + ' (' + mode + ')'); })
+      .catch(function (e) { log('bad', 'Input helper FAILED: ' + name + ' ' + e.message); });
   }
 
   function remoteRow() {

@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap');
 
-/* XD Launcher home. Fixed 1920x1080 TV canvas with an 80px overscan-safe margin. */
+/* Lumen home. Fixed 1920x1080 TV canvas with an 80px overscan-safe margin. */
 :root {
   --ink: #05080f;      /* deep sea ink: page */
   --tide: #0c1726;     /* tide: surfaces */
@@ -21,14 +21,38 @@
 html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--ink); color: var(--mist); font-family: var(--sans); }
 button { font: inherit; color: inherit; border: 0; background: none; padding: 0; }
 
-/* Faint wash of the focused app's colour behind everything. */
-#tint { position: absolute; inset: 0; pointer-events: none; opacity: .55;
-  background: radial-gradient(1200px 700px at 70% 85%, var(--tint, transparent), transparent 70%);
-  transition: background 600ms ease; }
+/* ---- Living wallpaper ----
+   JS sets the time-of-day palette (--sky-1..3, --light, --light-x/y, --accent,
+   --swell-1..2) every minute, blending smoothly between phases of the day.
+   Only transform and opacity animate, to stay light on the TV's GPU. */
+#wall { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+#wall .sky { position: absolute; inset: 0;
+  background: linear-gradient(180deg, var(--sky-1, #05070f) 0%, var(--sky-2, #0a1430) 45%, var(--ink) 100%);
+  transition: background 4s linear; }
+#wall .orb { position: absolute; left: 0; top: 0; width: 1400px; height: 900px; margin: -450px 0 0 -700px;
+  background: radial-gradient(closest-side, var(--light, rgba(170, 190, 230, .28)), transparent);
+  transform: translate(var(--light-x, 1300px), var(--light-y, 180px));
+  transition: transform 60s linear, background 4s linear; }
+#wall .shimmer { position: absolute; width: 1600px; height: 600px; border-radius: 50%; opacity: .5; will-change: transform;
+  background: radial-gradient(closest-side, var(--light, rgba(170, 190, 230, .2)), transparent 70%); }
+#wall .shimmer-a { left: -200px; top: 520px; animation: shimmerA 46s ease-in-out infinite alternate; }
+#wall .shimmer-b { right: -300px; top: 760px; opacity: .35; animation: shimmerB 61s ease-in-out infinite alternate; }
+@keyframes shimmerA { from { transform: translate(0, 0) scale(1); } to { transform: translate(380px, -60px) scale(1.15); } }
+@keyframes shimmerB { from { transform: translate(0, 0) scale(1.1); } to { transform: translate(-420px, 40px) scale(.95); } }
+/* The interactive light: glides to the focused tile, tinted by that app. */
+#wall .focuslight { position: absolute; left: 0; top: 0; width: 1100px; height: 760px; margin: -380px 0 0 -550px;
+  background: radial-gradient(closest-side, var(--focus-c, rgba(159, 211, 230, .22)), transparent);
+  transform: translate(var(--focus-x, 960px), var(--focus-y, 800px));
+  transition: transform 700ms cubic-bezier(.2, .7, .2, 1), background 600ms ease; }
+/* A whisper of grain keeps the dark gradients from banding on big panels. */
+#wall .grain { position: absolute; inset: 0; opacity: .05;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.9'/></svg>"); }
 
 .topbar { position: absolute; z-index: 5; left: var(--safe); right: var(--safe); top: 44px;
   display: flex; justify-content: space-between; align-items: baseline; }
-.mark { font-family: var(--sans); font-weight: 700; font-size: 30px; letter-spacing: 1px; color: var(--mist); opacity: .9; }
+.mark { display: flex; align-items: center; gap: 12px; font-family: var(--sans); font-weight: 600; font-size: 30px; letter-spacing: .5px; color: var(--mist); }
+.mark-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent, #9fd3e6);
+  box-shadow: 0 0 14px 3px var(--light, rgba(159, 211, 230, .5)); transition: background 4s linear; }
 .clock { display: flex; gap: 18px; align-items: baseline; }
 .clock #day { font-size: 24px; color: var(--fog); }
 .clock #time { font-family: var(--serif); font-size: 44px; font-weight: 500; font-variant-numeric: tabular-nums; }
@@ -37,19 +61,19 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 
 /* ---- Hero: the living tide ---- */
 .hero { position: relative; height: 600px; margin: 0; overflow: hidden; }
+#home { z-index: 1; }
 .tide { position: absolute; inset: 0;
-  background: linear-gradient(180deg, #0a1c33 0%, #0b2a45 42%, #0e3a57 62%, #07121f 100%); }
-body.evening .tide { background: linear-gradient(180deg, #170f20 0%, #2b1c33 38%, #2a3350 62%, #08101c 100%); }
+  background: linear-gradient(180deg, var(--sky-1, #0a1c33) 0%, var(--sky-2, #0b2a45) 42%, var(--sky-3, #0e3a57) 64%, rgba(5, 8, 15, .2) 100%);
+  transition: background 4s linear; }
 .tide .glow { position: absolute; left: 52%; top: 18%; width: 900px; height: 520px; border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(159, 211, 230, .38), rgba(159, 211, 230, 0)); filter: blur(10px); }
-body.evening .tide .glow { background: radial-gradient(closest-side, rgba(232, 168, 103, .42), rgba(232, 168, 103, 0)); }
+  background: radial-gradient(closest-side, var(--light, rgba(159, 211, 230, .38)), transparent);
+  transform: translateX(var(--glow-x, 0px)); transition: transform 60s linear, background 4s linear; }
 .swell { position: absolute; left: 0; width: 200%; height: 400px; bottom: -40px; will-change: transform; }
 .swell path { fill: currentColor; }
-.swell-1 { color: rgba(19, 66, 96, .55); bottom: 40px; animation: drift 38s linear infinite; }
-.swell-2 { color: rgba(12, 45, 70, .75); bottom: 0; animation: drift 52s linear infinite reverse; }
-.swell-3 { color: rgba(5, 8, 15, .95); bottom: -50px; animation: drift 70s linear infinite; }
-body.evening .swell-1 { color: rgba(74, 52, 82, .5); }
-body.evening .swell-2 { color: rgba(36, 34, 62, .8); }
+.swell-1 { color: var(--swell-1, rgba(19, 66, 96, .55)); bottom: 40px; animation: drift 38s linear infinite; }
+.swell-2 { color: var(--swell-2, rgba(12, 45, 70, .75)); bottom: 0; animation: drift 52s linear infinite reverse; }
+.swell path { transition: fill 4s linear; }
+.swell-3 { color: rgba(5, 8, 15, .55); bottom: -50px; animation: drift 70s linear infinite; }
 /* Light catching the water: a soft band that breathes slowly. */
 .sparkle { position: absolute; left: 44%; right: 8%; top: 52%; height: 70px;
   background: radial-gradient(60% 50% at 50% 50%, rgba(232, 238, 245, .22), transparent 70%);
@@ -57,8 +81,9 @@ body.evening .swell-2 { color: rgba(36, 34, 62, .8); }
 @keyframes drift { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @keyframes breathe { 0%, 100% { opacity: .35; } 50% { opacity: .85; } }
 /* Fade the hero into the page. */
-.hero::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 220px;
-  background: linear-gradient(180deg, rgba(5, 8, 15, 0), var(--ink)); }
+/* Fade the hero's water into the living wallpaper below, with no seam. */
+.tide { -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%); }
 
 .hero-copy { position: absolute; z-index: 2; left: var(--safe); bottom: 96px; width: 900px; transition: opacity 260ms ease; }
 /* Once the shelves have focus, the hero becomes quiet scenery. */
@@ -66,8 +91,7 @@ body.browsing .hero-copy { opacity: 0; }
 .topbar::before { content: ''; position: absolute; left: calc(-1 * var(--safe)); right: calc(-1 * var(--safe)); top: -44px; height: 150px; z-index: -1;
   background: linear-gradient(180deg, rgba(5, 8, 15, .85), rgba(5, 8, 15, 0)); opacity: 0; transition: opacity 260ms ease; }
 body.browsing .topbar::before { opacity: 1; }
-.hero-kicker { margin: 0 0 10px; font-size: 26px; font-weight: 600; color: var(--sea); }
-body.evening .hero-kicker { color: var(--amber); }
+.hero-kicker { margin: 0 0 10px; font-size: 26px; font-weight: 600; color: var(--accent, var(--sea)); transition: color 4s linear; }
 .hero-title { margin: 0; font-family: var(--serif); font-weight: 600; font-size: 112px; line-height: .98;
   letter-spacing: -2px; font-variation-settings: 'opsz' 144; }
 .hero-sub { margin: 18px 0 34px; font-size: 28px; line-height: 1.35; color: #c4cfdb; max-width: 38ch; }
@@ -77,8 +101,7 @@ body.evening .hero-kicker { color: var(--amber); }
   transition: transform 180ms ease, background 180ms ease, color 180ms ease, box-shadow 180ms ease; }
 .btn.primary { background: rgba(232, 238, 245, .92); color: #08111d; }
 .btn.focused { transform: scale(1.08); background: #fff; color: #08111d;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, .5), 0 0 0 4px rgba(159, 211, 230, .55); }
-body.evening .btn.focused { box-shadow: 0 16px 40px rgba(0, 0, 0, .5), 0 0 0 4px rgba(232, 168, 103, .6); }
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .5), 0 0 0 4px var(--light, rgba(159, 211, 230, .55)); }
 
 /* ---- Shelves ---- */
 .shelf { position: relative; padding: 0 0 0 var(--safe); margin-top: 8px; }
@@ -124,7 +147,8 @@ body.evening .btn.focused { box-shadow: 0 16px 40px rgba(0, 0, 0, .5), 0 0 0 4px
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 @media (prefers-reduced-motion: reduce) {
-  .swell, .sparkle { animation: none; }
+  .swell, .sparkle, #wall .shimmer { animation: none; }
+  #wall .focuslight, #wall .orb { transition: none; }
   .tile.focused .face::after { animation: none; }
   #home, .rail, .tile .face, .btn { transition: none; }
 }
