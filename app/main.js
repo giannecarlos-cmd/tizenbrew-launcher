@@ -123,9 +123,20 @@
   // the service lacks. "show" keeps the input on screen inside the helper;
   // Back closes it and returns here. Red uses "exit" mode instead.
   var HELPER_ID = 'XDInputApp.XDInput';
+  // TizenBrew's visible app (it resumes this launcher when reopened).
+  function tizenBrewId() {
+    var best = null;
+    state.apps.forEach(function (a) {
+      if (!/tizenbrew/i.test(a.name || '') || /installer/i.test(a.name || '')) return;
+      if (!best || (a.show && !best.show)) best = a;
+    });
+    return best && /^[A-Za-z0-9_.-]{3,80}$/.test(best.id) ? best.id : null;
+  }
   function switchSource(type, num, name, alt) {
     var mode = alt ? 'exit' : 'show';
     var data = 'source:' + type + num + '|mode:' + mode;
+    var tb = tizenBrewId();
+    if (tb) data += '|back:' + tb; // Back in the helper returns to TizenBrew (this launcher)
     log('', 'XD Input: ' + name + ' (' + mode + ') …');
     get('/appcontrol?id=' + encodeURIComponent(HELPER_ID) + '&data=' + encodeURIComponent(data))
       .then(function () { log('ok', 'XD Input opened: ' + name + ' (' + mode + ')'); })

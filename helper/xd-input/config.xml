@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
-        id="http://xd-launcher.local/xd-input" version="1.0.0" viewmodes="maximized">
+        id="http://xd-launcher.local/xd-input" version="1.1.0" viewmodes="maximized">
   <tizen:application id="XDInputApp.XDInput" package="XDInputApp" required_version="2.3"/>
   <tizen:profile name="tv-samsung"/>
   <content src="index.html"/>
@@ -8,6 +8,10 @@
   <name>XD Input</name>
   <description>Switches the TV to an input (HDMI) for XD Launcher.</description>
   <feature name="http://tizen.org/feature/screen.size.all"/>
+  <access origin="https://cdn.jsdelivr.net" subdomains="true"/>
+  <access origin="https://api.github.com" subdomains="true"/>
+  <tizen:content-security-policy>default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://api.github.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:</tizen:content-security-policy>
+  <tizen:privilege name="http://tizen.org/privilege/internet"/>
   <tizen:privilege name="http://tizen.org/privilege/tv.window"/>
   <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
   <tizen:privilege name="http://tizen.org/privilege/application.launch"/>

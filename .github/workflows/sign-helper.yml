@@ -36,16 +36,32 @@ jobs:
           rm tizen-installer
           echo "$HOME/tizen-studio/tools/ide/bin" >> "$GITHUB_PATH"
 
+      # Keep one author certificate across builds: Tizen only accepts an update
+      # signed by the same author as the installed app.
+      - name: Restore author certificate
+        id: authorcache
+        uses: actions/cache@v4
+        with:
+          path: ~/xd-author
+          key: xd-author-cert-v1
+
       - name: Create author certificate and signing profiles
         run: |
-          # Throwaway author certificate for this build. It only identifies
-          # this helper; it grants nothing beyond public privileges.
-          PW="xd$(openssl rand -hex 12)"
-          echo "::add-mask::$PW"
-          echo "AUTHOR_PW=$PW" >> "$GITHUB_ENV"
-          tizen certificate -a XDLauncher -p "$PW" -c CA -s BC -ct Vancouver -o "XD Launcher" -n "XD Launcher" -f xdauthor
+          mkdir -p "$HOME/xd-author" "$HOME/tizen-studio-data/keystore/author"
+          if [ -f "$HOME/xd-author/xdauthor.p12" ]; then
+            PW="$(cat "$HOME/xd-author/pw")"
+            echo "::add-mask::$PW"
+            echo "Reusing cached author certificate"
+          else
+            # Author certificate for this helper only; grants nothing beyond public privileges.
+            PW="xd$(openssl rand -hex 12)"
+            echo "::add-mask::$PW"
+            tizen certificate -a XDLauncher -p "$PW" -c CA -s BC -ct Vancouver -o "XD Launcher" -n "XD Launcher" -f xdauthor
+            cp "$HOME/tizen-studio-data/keystore/author/xdauthor.p12" "$HOME/xd-author/xdauthor.p12"
+            printf '%s' "$PW" > "$HOME/xd-author/pw"
+          fi
+          AUTHOR="$HOME/xd-author/xdauthor.p12"
           CERTS="$HOME/tizen-studio/tools/certificate-generator/certificates"
-          AUTHOR="$HOME/tizen-studio-data/keystore/author/xdauthor.p12"
           mkdir -p "$HOME/tizen-studio-data/profile"
           cat > "$HOME/tizen-studio-data/profile/profiles.xml" <<EOF
           <?xml version="1.0" encoding="UTF-8" standalone="no"?>
