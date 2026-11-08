@@ -114,8 +114,9 @@
     if (t.glyph) return '<div class="glyph">' + GLYPHS[t.glyph] + '</div>';
     var app = state.resolved[key];
     if (!app && t.iconFrom) app = appById(t.iconFrom[0]);
-    if (app && app.iconPath) {
-      return '<img alt="" src="' + API + '/icon?path=' + encodeURIComponent(app.iconPath) + '" ' +
+    if (app) {
+      // The developer's own icon, as installed on this TV.
+      return '<img alt="" src="' + API + '/appicon?id=' + encodeURIComponent(app.id) + '" ' +
         'onerror="this.outerHTML=\'<div class=mono>' + esc(t.label.charAt(0)) + '</div>\'">';
     }
     return '<div class="mono">' + esc(t.label.charAt(0)) + '</div>';

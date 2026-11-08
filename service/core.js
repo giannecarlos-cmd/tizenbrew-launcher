@@ -11,7 +11,7 @@
 
 var fs = require('fs');
 
-var VERSION = '0.7.0';
+var VERSION = '0.8.0';
 
 function send(res, status, body, type) {
   res.writeHead(status, {
@@ -244,6 +244,73 @@ function validKeys(list) {
   return keys;
 }
 
+// ---------------------------------------------------------------------------
+// App icons: the developer's own icon as installed on the TV. Uses the icon
+// path the TV reports; when that is missing or unreadable, looks inside the
+// app's own install folder for its icon image. Only image files inside known
+// app folders of apps the TV listed are ever read.
+// ---------------------------------------------------------------------------
+var appIndex = {};     // app id -> { iconPath, packageId }
+var iconCache = {};    // app id -> resolved file path (or '' when none found)
+var APP_ROOTS = ['/opt/usr/globalapps/', '/usr/apps/', '/opt/usr/apps/', '/opt/usr/home/owner/apps_rw/'];
+
+function isImage(name) { return /\.(png|jpe?g|webp)$/i.test(name); }
+
+function findIconFile(pkg, cb) {
+  if (!pkg || !/^[A-Za-z0-9_.-]{2,80}$/.test(pkg)) return cb(null);
+  var best = null, bestScore = -1, pending = 0, finished = false;
+  function score(path, size) {
+    var n = path.toLowerCase();
+    var s = Math.min(size, 400000) / 1000;           // bigger is usually sharper
+    if (/icon|logo/.test(n)) s += 500;               // named like an icon
+    if (/splash|background|bg_|banner|preview|screenshot/.test(n)) s -= 800;
+    if (/\/shared\/res\//.test(n)) s += 200;      // where Tizen apps keep icons
+    return s;
+  }
+  function done() { if (!finished && pending === 0) { finished = true; cb(best); } }
+  function walk(dir, depth) {
+    pending++;
+    fs.readdir(dir, guard(function (err, names) {
+      if (!err && names) {
+        names.forEach(function (name) {
+          if (name.charAt(0) === '.') return;
+          var full = dir + '/' + name;
+          pending++;
+          fs.stat(full, guard(function (e2, st) {
+            if (!e2 && st) {
+              if (st.isDirectory() && depth < 4 && !/node_modules|locale|lib$/i.test(name)) walk(full, depth + 1);
+              else if (st.isFile() && isImage(name) && st.size > 1500 && st.size < 2000000) {
+                var sc = score(full, st.size);
+                if (sc > bestScore) { bestScore = sc; best = full; }
+              }
+            }
+            pending--; done();
+          }, function () { pending--; done(); }));
+        });
+      }
+      pending--; done();
+    }, function () { pending--; done(); }));
+  }
+  var roots = APP_ROOTS.slice(), i = 0;
+  (function nextRoot() {
+    if (i >= roots.length) { if (pending === 0 && !finished) { finished = true; cb(best); } return; }
+    var dir = roots[i++] + pkg;
+    fs.stat(dir, guard(function (e, st) {
+      if (!e && st && st.isDirectory()) { walk(dir, 0); return; }
+      nextRoot();
+    }, function () { nextRoot(); }));
+  })();
+}
+
+function sendImage(res, path) {
+  fs.readFile(path, guard(function (e, data) {
+    if (e) return send(res, 404, { error: 'not found' });
+    var type = /\.jpe?g$/i.test(path) ? 'image/jpeg' : /\.webp$/i.test(path) ? 'image/webp' : 'image/png';
+    res.writeHead(200, { 'Content-Type': type, 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'max-age=86400' });
+    res.end(data);
+  }, function () { send(res, 500, { error: 'read failed' }); }));
+}
+
 var routes = {
   // /key?keys=KEY_HDMI or KEY_1,KEY_2,KEY_ENTER, optional &token=<saved token>
   // and &via=lan|lo (the route that worked last time, remembered by the page).
@@ -290,6 +357,28 @@ var routes = {
 
   // Every installed app, including hidden ones, so we can find system apps
   // such as the TV viewer (inputs) and Samsung TV Plus.
+  // /appicon?id=<app id>: the app's own icon, found as described above.
+  '/appicon': function (req, res, query) {
+    var id = String(query.id || '');
+    var info = appIndex[id];
+    if (!info) return send(res, 404, { error: 'unknown app (load /apps first)' });
+    if (iconCache[id] !== undefined) {
+      return iconCache[id] ? sendImage(res, iconCache[id]) : send(res, 404, { error: 'no icon found' });
+    }
+    var reported = info.iconPath ? String(info.iconPath).replace(/^file:\/\//, '') : '';
+    function fallback() {
+      findIconFile(info.packageId || id.split('.')[0], function (found) {
+        iconCache[id] = found || '';
+        if (found) sendImage(res, found); else send(res, 404, { error: 'no icon found' });
+      });
+    }
+    if (!reported) return fallback();
+    fs.stat(reported, guard(function (e, st) {
+      if (!e && st && st.isFile() && st.size > 200) { iconCache[id] = reported; return sendImage(res, reported); }
+      fallback();
+    }, function () { fallback(); }));
+  },
+
   '/apps': function (req, res) {
     if (!hasTizen()) return send(res, 503, { error: 'tizen API not available in service' });
     try {
@@ -297,11 +386,13 @@ var routes = {
         var self = '';
         try { self = tizen.application.getAppInfo().id; } catch (e) { /* no own id */ }
         allowedIcons = {};
+        appIndex = {};
         var apps = [];
         for (var i = 0; i < list.length; i++) {
           var a = list[i];
           if (a.id === self) continue;
           if (a.iconPath) allowedIcons[a.iconPath] = true;
+          appIndex[a.id] = { iconPath: a.iconPath || null, packageId: a.packageId || null };
           apps.push({
             id: a.id,
             name: a.name,

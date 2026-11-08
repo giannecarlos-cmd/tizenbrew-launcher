@@ -1,12 +1,12 @@
-# XD Launcher (TizenBrew module)
+# Lumen (TizenBrew module)
 
-A clean, ad-free launcher for Samsung Tizen TVs, built as a [TizenBrew](https://github.com/reisxd/TizenBrew) app module.
+Lumen is a clean, ad-free launcher for Samsung Tizen TVs, built as a [TizenBrew](https://github.com/reisxd/TizenBrew) app module.
 
 Target TV: Samsung QN75Q8DTAFXZC (2024 Q80D), Tizen 8.0.
 
 ## Status
 
-**v0.4.0 — diagnostics, self-updating.** Shows every matching app per launcher tile, keeps an on-screen launch log, and can test an alternative app-control launch (Red). Used to confirm app IDs and launch behavior before the real UI is built.
+**Home screen (Lumen).** Ocean Vibes hero, Watch / Play / More shelves, real app icons from the TV, and a living time-of-day wallpaper (dark). Diagnostics open from More.
 
 ## Install on the TV
 
@@ -22,11 +22,16 @@ The pinned tag only holds two stable bootstraps. On each launch `app/launcher.ht
 
 - `package.json` — TizenBrew module manifest (`packageType: app`).
 - `app/launcher.html` — tiny stable loader, served by TizenBrew at `127.0.0.1:8081`. It never changes, so the TV's web cache can't hold back updates.
-- `app/body.html`, `app/main.css`, `app/main.js` — the real screen, loaded with a unique query string on every launch.
+- `app/body.html`, `app/main.css`, `app/main.js` — the Lumen home screen.
+- `app/diag.html`, `app/diag.css`, `app/diag.js` — diagnostics, opened from More > Diagnostics.
 - `service/service.js` — stable Node bootstrap (ES5, Node 4) on `127.0.0.1:8190`: `/ping`, `/boot?ref=<sha>`.
-- `service/core.js` — the routes that bridge the page to the `tizen` API: `/info`, `/apps`, `/launch?id=`, `/appcontrol?id=`, `/icon?path=`, `/sources` (input list), `/appcontrol?id=...&data=source:HDMI1|mode:show` (opens the XD Input helper), and `/key?keys=KEY_HDMI` (remote button presses through the TV's local remote-control service; the first use shows an Allow prompt on the TV).
+- `service/core.js` — the routes that bridge the page to the `tizen` API: `/info`, `/apps`, `/appicon?id=` (the app's own installed icon), `/launch?id=`, `/appcontrol?id=`, `/icon?path=`, `/sources` (input list), `/appcontrol?id=...&data=source:HDMI1|mode:show` (opens the XD Input helper), and `/key?keys=KEY_HDMI` (remote button presses through the TV's local remote-control service; the first use shows an Allow prompt on the TV).
 
-## Remote keys (diagnostics screen)
+## Remote keys
+
+Home: arrows move, OK opens, Back returns to the top row.
+
+Diagnostics:
 
 - Arrows: move · OK: launch · Back: return to TizenBrew · Red: app-control launch · Yellow: show hidden apps · Blue: reload
 
