@@ -16,7 +16,7 @@ var fs = require('fs');
 var url = require('url');
 
 var PORT = 8190; // TizenBrew uses 8081, TizenTube uses 8085/8095
-var VERSION = '0.1.0';
+var VERSION = '0.2.0';
 
 function send(res, status, body, type) {
   res.writeHead(status, {
@@ -101,6 +101,22 @@ var routes = {
       tizen.application.launch(String(query.id), function () {
         send(res, 200, { ok: true, id: query.id });
       }, function (e) { fail(res, e); });
+    } catch (e) {
+      fail(res, e);
+    }
+  },
+
+  // Alternative launch path. Some system apps (e.g. source/input apps) only
+  // respond to an app-control request, not a plain launch.
+  '/appcontrol': function (req, res, query) {
+    if (!hasTizen()) return send(res, 503, { error: 'tizen API not available in service' });
+    if (!query.id) return send(res, 400, { error: 'missing id' });
+    try {
+      var op = String(query.op || 'http://tizen.org/appcontrol/operation/default');
+      var ctl = new tizen.ApplicationControl(op, query.uri ? String(query.uri) : null);
+      tizen.application.launchAppControl(ctl, String(query.id), function () {
+        send(res, 200, { ok: true, id: query.id, op: op });
+      }, function (e) { fail(res, e); }, null);
     } catch (e) {
       fail(res, e);
     }

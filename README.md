@@ -6,15 +6,15 @@ Target TV: Samsung QN75Q8DTAFXZC (2024 Q80D), Tizen 8.0.
 
 ## Status
 
-**v0.1.0 — diagnostics.** Lists every installed app with its ID and icon, highlights the apps the launcher will use, and launches any app with OK. Used to confirm app IDs and launch permissions before the real UI is built.
+**v0.2.0 — diagnostics.** Shows every matching app per launcher tile, keeps an on-screen launch log, and can test an alternative app-control launch (Red). Used to confirm app IDs and launch behavior before the real UI is built.
 
 ## Install on the TV
 
 1. Open TizenBrew → Module Manager → Add GitHub module.
-2. Enter `giannecarlos-cmd/tizenbrew-launcher@v0.1.0`.
+2. Enter `giannecarlos-cmd/tizenbrew-launcher`.
 3. Optional: Settings → Autolaunch → XD Launcher.
 
-Pin a version tag: jsDelivr caches branches for hours, so new releases get a new tag.
+To load an update right away, purge the jsDelivr cache for package.json, app/index.html and service/service.js.
 
 ## Layout
 
@@ -24,4 +24,4 @@ Pin a version tag: jsDelivr caches branches for hours, so new releases get a new
 
 ## Remote keys (diagnostics screen)
 
-- Arrows: move · OK: launch · Yellow: show hidden apps · Blue: reload
+- Arrows: move · OK: launch · Red: app-control launch · Yellow: show hidden apps · Blue: reload

@@ -1,7 +1,7 @@
 {
   "name": "tizenbrew-launcher",
-  "version": "0.1.0",
-  "description": "Clean, ad-free TV launcher for Samsung Tizen. v0.1 is a diagnostic build that lists installed apps and tests launching.",
+  "version": "0.2.0",
+  "description": "Clean, ad-free TV launcher for Samsung Tizen. v0.2 diagnostic build: every app match per tile, launch log, app-control test.",
   "packageType": "app",
   "appName": "XD Launcher",
   "appPath": "app/index.html",

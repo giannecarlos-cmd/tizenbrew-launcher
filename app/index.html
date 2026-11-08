@@ -51,10 +51,19 @@
   .key { display: inline-block; padding: 2px 10px; border-radius: 6px; border: 1px solid var(--line); margin: 0 6px 0 18px; color: var(--text); }
   .key.yellow { border-color: #c9a400; color: #f0d000; }
   .key.blue { border-color: #2a5bd7; color: #6f9bff; }
-  #toast { position: absolute; left: 50%; bottom: 100px; transform: translateX(-50%); padding: 14px 26px; border-radius: 12px;
+  #toast { position: absolute; left: 50%; bottom: 300px; transform: translateX(-50%); padding: 14px 26px; border-radius: 12px;
     background: #20232d; border: 1px solid var(--line); font-size: 22px; opacity: 0; transition: opacity 200ms; }
   #toast.show { opacity: 1; }
   #empty { font-size: 24px; color: var(--muted); }
+  h3 { font-size: 22px; font-weight: 600; margin: 22px 0 10px; color: var(--text); }
+  h3 small { color: var(--muted); font-weight: 400; margin-left: 10px; }
+  #scroller { bottom: 290px; }
+  #log { position: absolute; left: 96px; right: 96px; bottom: 96px; height: 170px; padding: 14px 20px;
+    border-radius: 14px; background: var(--panel); border: 1px solid var(--line); overflow: hidden;
+    font-family: Menlo, Consolas, monospace; font-size: 18px; line-height: 1.55; color: var(--muted); }
+  #log .ok { color: var(--ok); }
+  #log .bad { color: #ff6b72; }
+  .key.red { border-color: #b3261e; color: #ff6b72; }
 </style>
 </head>
 <body>
@@ -65,13 +74,16 @@
 
 <div id="scroller"><div id="content">
   <h2>Launcher targets</h2>
-  <div class="row" id="targets"></div>
+  <div id="targets"></div>
   <h2 id="allTitle">All installed apps</h2>
   <div class="row" id="all"><div id="empty">Waiting for the app list…</div></div>
 </div></div>
 
+<div id="log">Launch log: press OK on any card. Results stay here.</div>
+
 <footer>
   <div>Arrows move · <span class="key">OK</span>launch
+    <span class="key red">Red</span>app-control launch
     <span class="key yellow">Yellow</span>show hidden apps
     <span class="key blue">Blue</span>reload</div>
   <div id="lastKey">Last key: none</div>
@@ -86,7 +98,7 @@
   // What the real launcher needs. Matched by name, case-insensitive.
   var TARGETS = [
     { label: 'Samsung TV Plus', match: ['tv plus', 'tvplus'] },
-    { label: 'TELUS box (HDMI input)', match: ['tv viewer', 'tv-viewer', 'source', 'input'], ids: ['org.tizen.tv-viewer'] },
+    { label: 'TELUS box (HDMI input)', match: ['tv viewer', 'tv-viewer', 'source', 'input', 'hdmi', 'external'], ids: ['org.tizen.tv-viewer'] },
     { label: 'Netflix', match: ['netflix'] },
     { label: 'Disney+', match: ['disney'] },
     { label: 'Prime Video', match: ['prime video', 'amazon'] },
@@ -165,12 +177,15 @@
       (tagHtml || '') + '</div></div>';
   }
 
+  // One row per target, showing every matching app so the right ID can be picked.
   function render() {
     var t = TARGETS.map(function (tg) {
       var hits = findTarget(tg);
-      if (!hits.length) return card(null, 'target', '<span class="tag missing">Not found</span>', tg.label);
-      var extra = hits.length > 1 ? ' · ' + (hits.length - 1) + ' more match' + (hits.length > 2 ? 'es' : '') : '';
-      return card(hits[0], 'target', '<span class="tag found">' + esc(tg.label) + extra + '</span>');
+      var head = '<h3>' + esc(tg.label) + '<small>' + hits.length + ' match' + (hits.length === 1 ? '' : 'es') + '</small></h3>';
+      if (!hits.length) return head + '<div class="row">' + card(null, 'target', '<span class="tag missing">Not found</span>', tg.label) + '</div>';
+      return head + '<div class="row">' + hits.map(function (a) {
+        return card(a, 'target', '<span class="tag found">' + (a.show ? 'visible' : 'hidden') + '</span>');
+      }).join('') + '</div>';
     }).join('');
     $('targets').innerHTML = t;
 
@@ -226,16 +241,29 @@
     if (best >= 0) { state.focus = best; applyFocus(); }
   }
 
-  function launchFocused() {
+  var logLines = [];
+  function log(kind, msg) {
+    var d = new Date();
+    var ts = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
+    logLines.unshift('<div class="' + kind + '">' + ts + '  ' + esc(msg) + '</div>');
+    logLines = logLines.slice(0, 5);
+    $('log').innerHTML = logLines.join('');
+  }
+
+  // mode: 'launch' uses tizen.application.launch, 'control' uses launchAppControl.
+  function launchFocused(mode) {
     var el = focusables()[state.focus];
     if (!el) return;
     var id = el.getAttribute('data-id');
     var name = el.getAttribute('data-name');
-    if (!id) { toast(name + ' is not installed on this TV.'); return; }
+    if (!id) { log('bad', name + ': not installed on this TV'); return; }
+    var path = mode === 'control' ? '/appcontrol?id=' : '/launch?id=';
+    var how = mode === 'control' ? 'app-control' : 'launch';
     toast('Opening ' + name + '…');
-    get('/launch?id=' + encodeURIComponent(id))
-      .then(function () { toast('Launched ' + name); })
-      .catch(function (e) { toast('Could not open ' + name + ': ' + e.message); });
+    log('', how + ' ' + id + ' …');
+    get(path + encodeURIComponent(id))
+      .then(function () { log('ok', how + ' OK: ' + name + ' (' + id + ')'); })
+      .catch(function (e) { log('bad', how + ' FAILED: ' + name + ' (' + id + ') ' + e.message); });
   }
 
   function load() {
@@ -258,7 +286,8 @@
   document.addEventListener('keydown', function (e) {
     $('lastKey').textContent = 'Last key: ' + (e.key || '?') + ' (' + e.keyCode + ')';
     if (KEY[e.keyCode]) { e.preventDefault(); move(KEY[e.keyCode]); return; }
-    if (e.keyCode === 13) { e.preventDefault(); launchFocused(); return; }
+    if (e.keyCode === 13) { e.preventDefault(); launchFocused('launch'); return; }
+    if (e.keyCode === 403) { launchFocused('control'); return; } // Red
     if (e.keyCode === 405) { state.showHidden = !state.showHidden; state.focus = 0; render(); return; } // Yellow
     if (e.keyCode === 406) { load(); return; } // Blue
   });
