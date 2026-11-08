@@ -29,3 +29,9 @@ The pinned tag only holds two stable bootstraps. On each launch `app/launcher.ht
 ## Remote keys (diagnostics screen)
 
 - Arrows: move · OK: launch · Back: return to TizenBrew · Red: app-control launch · Yellow: show hidden apps · Blue: reload
+
+## XD Input helper (`helper/`)
+
+TizenBrew's service can't switch inputs (the TV's `tvwindow` API needs an app with its own window and the `tv.window` privilege), and the TV refuses remote-control connections from on-device apps. `helper/xd-input` is a tiny packaged app that does only that: opened with app-control data `source=HDMI1` and `mode=viewer|exit|show` it switches and gets out of the way; opened from the Apps list it shows a test screen.
+
+Build: `helper/build.sh` → `helper/dist/XDInput.wgt` (unsigned; the TizenBrew Installer re-signs it with the owner's Samsung certificate). Install: TizenBrew Installer → Install from GitHub → `giannecarlos-cmd/tizenbrew-launcher` (picks the latest release's .wgt). Developer Mode's Host PC IP must point at the PC during the install, then back to `127.0.0.1`.
