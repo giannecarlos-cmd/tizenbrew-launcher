@@ -11,7 +11,7 @@
 
 var fs = require('fs');
 
-var VERSION = '0.6.0';
+var VERSION = '0.7.0';
 
 function send(res, status, body, type) {
   res.writeHead(status, {
@@ -397,9 +397,20 @@ var routes = {
     if (!query.id) return send(res, 400, { error: 'missing id' });
     try {
       var op = String(query.op || 'http://tizen.org/appcontrol/operation/default');
-      var ctl = new tizen.ApplicationControl(op, query.uri ? String(query.uri) : null);
+      // Optional data, e.g. data=source:HDMI1|mode:show for the XD Input helper.
+      var data = [];
+      if (query.data) {
+        var pairs = String(query.data).split('|');
+        if (pairs.length > 8) return send(res, 400, { error: 'too many data pairs' });
+        for (var i = 0; i < pairs.length; i++) {
+          var kv = /^([A-Za-z0-9_]{1,32}):([A-Za-z0-9_.-]{0,64})$/.exec(pairs[i]);
+          if (!kv) return send(res, 400, { error: 'bad data pair: ' + pairs[i] });
+          data.push(new tizen.ApplicationControlData(kv[1], [kv[2]]));
+        }
+      }
+      var ctl = new tizen.ApplicationControl(op, query.uri ? String(query.uri) : null, null, null, data.length ? data : null);
       tizen.application.launchAppControl(ctl, String(query.id), function () {
-        send(res, 200, { ok: true, id: query.id, op: op });
+        send(res, 200, { ok: true, id: query.id, op: op, data: query.data || null });
       }, function (e) { fail(res, e); }, null);
     } catch (e) {
       fail(res, e);

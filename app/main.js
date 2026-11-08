@@ -102,7 +102,8 @@
     var s = state.sources;
     var head = '<h3>Inputs<small>';
     if (!s) return head + 'checking…</small></h3>';
-    head += 'tvwindow API: ' + (s.tvwindow ? 'available' : 'NOT available in service') +
+    var helper = state.apps.some(function (a) { return a.id === HELPER_ID; });
+    head += 'via XD Input helper: ' + (helper ? 'installed' : 'NOT installed') +
       (s.current ? ' · now: ' + esc(s.current.type + ' ' + (s.current.number || '')) : '') +
       (s.error ? ' · ' + esc(s.error) : '') + '</small></h3>';
     var list = [];
@@ -118,11 +119,17 @@
     }).join('') + '</div>';
   }
 
-  function switchSource(type, num, name, viewer) {
-    log('', 'switch to ' + name + (viewer ? ' + TV viewer' : '') + ' …');
-    get('/setsource?type=' + encodeURIComponent(type) + '&number=' + encodeURIComponent(num) + (viewer ? '&viewer=1' : ''))
-      .then(function (r) { log('ok', 'switch OK: ' + name + (r.viewerError ? ' (viewer: ' + r.viewerError + ')' : '')); })
-      .catch(function (e) { log('bad', 'switch FAILED: ' + name + ' ' + e.message); });
+  // Inputs open the XD Input helper app, which has the TV-window permission
+  // the service lacks. "show" keeps the input on screen inside the helper;
+  // Back closes it and returns here. Red uses "exit" mode instead.
+  var HELPER_ID = 'XDInputApp.XDInput';
+  function switchSource(type, num, name, alt) {
+    var mode = alt ? 'exit' : 'show';
+    var data = 'source:' + type + num + '|mode:' + mode;
+    log('', 'XD Input: ' + name + ' (' + mode + ') …');
+    get('/appcontrol?id=' + encodeURIComponent(HELPER_ID) + '&data=' + encodeURIComponent(data))
+      .then(function () { log('ok', 'XD Input opened: ' + name + ' (' + mode + ')'); })
+      .catch(function (e) { log('bad', 'XD Input FAILED: ' + name + ' ' + e.message); });
   }
 
   function remoteRow() {
