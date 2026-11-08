@@ -2,9 +2,9 @@
   "_about": "Lumen home configuration. Tiles say what to open; shelves say where they appear. Edit here instead of in code.",
   "bedtime": "19:30",
   "weather": {
-    "city": "",
-    "lat": null,
-    "lon": null,
+    "city": "Surrey, BC",
+    "lat": 49.19,
+    "lon": -122.85,
     "units": "celsius"
   },
   "ambience": "full",
