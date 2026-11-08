@@ -16,7 +16,7 @@ var fs = require('fs');
 var url = require('url');
 
 var PORT = 8190; // TizenBrew uses 8081, TizenTube uses 8085/8095
-var VERSION = '0.2.0';
+var VERSION = '0.3.0';
 
 function send(res, status, body, type) {
   res.writeHead(status, {
