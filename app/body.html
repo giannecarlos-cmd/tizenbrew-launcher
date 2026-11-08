@@ -1,23 +1,44 @@
-<header>
-  <h1><span>XD</span> Launcher · Diagnostics</h1>
-  <div class="status" id="status"><span class="dot"></span>Starting service…</div>
+<div id="tint" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="mark">XD</div>
+  <div class="clock"><span id="day"></span><span id="time"></span></div>
 </header>
 
-<div id="scroller"><div id="content">
-  <h2>Launcher targets</h2>
-  <div id="targets"></div>
-  <h2 id="allTitle">All installed apps</h2>
-  <div class="row" id="all"><div id="empty">Waiting for the app list…</div></div>
-</div></div>
+<main id="home">
+  <section class="hero" id="hero">
+    <div class="tide" aria-hidden="true">
+      <div class="glow"></div>
+      <svg class="swell swell-1" viewBox="0 0 2400 400" preserveAspectRatio="none"><path d="M0 220 C 300 160 500 280 800 220 S 1300 160 1600 220 S 2100 280 2400 220 V400 H0 Z"/></svg>
+      <svg class="swell swell-2" viewBox="0 0 2400 400" preserveAspectRatio="none"><path d="M0 250 C 260 210 520 300 820 250 S 1340 200 1620 250 S 2140 300 2400 250 V400 H0 Z"/></svg>
+      <svg class="swell swell-3" viewBox="0 0 2400 400" preserveAspectRatio="none"><path d="M0 285 C 340 255 560 315 880 285 S 1400 255 1700 285 S 2160 315 2400 285 V400 H0 Z"/></svg>
+      <div class="sparkle"></div>
+    </div>
+    <div class="hero-copy">
+      <p class="hero-kicker" id="heroKicker">Tonight at 7:30</p>
+      <h1 class="hero-title">Ocean Vibes</h1>
+      <p class="hero-sub" id="heroSub">Waves on Samsung TV Plus, ready when you are.</p>
+      <div class="hero-actions">
+        <button class="btn primary focusable" data-row="0" data-tile="oceanvibes">Watch Ocean Vibes</button>
+        <button class="btn focusable" data-row="0" data-tile="tvbox">Open TV box</button>
+      </div>
+    </div>
+  </section>
 
-<div id="log">Launch log: press OK on any card. Results stay here.</div>
+  <section class="shelf" data-shelf="watch">
+    <h2>Watch</h2>
+    <div class="rail" id="railWatch"></div>
+  </section>
 
-<footer>
-  <div>Arrows move · <span class="key">OK</span>launch · <span class="key">Back</span>TizenBrew
-    <span class="key red">Red</span>app-control launch
-    <span class="key yellow">Yellow</span>show hidden apps
-    <span class="key blue">Blue</span>reload</div>
-  <div id="lastKey">Last key: none</div>
-</footer>
-<div id="toast"></div>
+  <section class="shelf" data-shelf="play">
+    <h2>Play</h2>
+    <div class="rail" id="railPlay"></div>
+  </section>
 
+  <section class="shelf" data-shelf="more">
+    <h2>More</h2>
+    <div class="rail" id="railMore"></div>
+  </section>
+</main>
+
+<div id="toast" role="status" aria-live="polite"></div>

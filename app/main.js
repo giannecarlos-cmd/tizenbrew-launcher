@@ -1,129 +1,105 @@
+// XD Launcher home screen.
+//
+// Loaded by launcher.html from the newest commit. Talks to the service bridge
+// on 127.0.0.1:8190 (see service/core.js) to list apps, fetch icons and launch.
+// Remote: arrows move, OK opens, Back returns to the top row.
 (function () {
   'use strict';
+
   var API = 'http://127.0.0.1:8190';
+  var HELPER_ID = 'XDInputApp.XDInput';
+  var TV_VIEWER = 'org.tizen.tv-viewer';
+  var BEDTIME = { h: 19, m: 30 }; // Ocean Vibes takes over the hero from here
+  var build = window.XD_BUILD || {};
 
-  // What the real launcher needs. Matched by name, case-insensitive.
-  var TARGETS = [
-    { label: 'Samsung TV Plus', match: ['tv plus', 'tvplus'] },
-    { label: 'TELUS box (HDMI input)', match: ['tv viewer', 'tv-viewer', 'source', 'input', 'hdmi', 'external'], ids: ['org.tizen.tv-viewer'] },
-    { label: 'Netflix', match: ['netflix'] },
-    { label: 'Disney+', match: ['disney'] },
-    { label: 'Prime Video', match: ['prime video', 'amazon'] },
-    { label: 'Crave', match: ['crave'] },
-    { label: 'YouTube', match: ['youtube'] },
-    { label: 'CosmoGO', match: ['cosmo', 'cineplex'] },
-    { label: 'Free Games', match: ['free games', 'freegames'] }
-  ];
+  // ---- What the launcher shows ----
+  // kind: app (launch by id/name), viewer (live TV, resumes the TV Plus channel),
+  // input (XD Input helper), soon (placeholder), action (built-in).
+  var TILES = {
+    tvbox:      { label: 'TV box', kind: 'input', source: 'HDMI1', color: '#3f6fa8', glyph: 'hdmi' },
+    netflix:    { label: 'Netflix', kind: 'app', ids: ['org.tizen.netflix-app'], names: [/^netflix$/i], color: '#e50914' },
+    disney:     { label: 'Disney+', kind: 'app', names: [/^disney\s*\+?$/i, /disney/i], exclude: /service|preview|widget/i, color: '#1a3fd1' },
+    prime:      { label: 'Prime Video', kind: 'app', ids: ['org.tizen.primevideo'], names: [/prime video/i], exclude: /service/i, color: '#00a8e1' },
+    crave:      { label: 'Crave', kind: 'app', ids: ['SKvHIMBcln.CraveTV'], names: [/^crave/i], color: '#1f5bff' },
+    youtube:    { label: 'YouTube', kind: 'app', ids: ['9Ur5IzDKqV.TizenYouTube'], names: [/^youtube$/i], color: '#ff2a2a' },
+    cosmogo:    { label: 'CosmoGO', kind: 'app', ids: ['CDMPWSBGDH.cineplex'], names: [/cosmo/i, /cineplex/i], color: '#6b46d6' },
+    tvplus:     { label: 'Samsung TV Plus', kind: 'viewer', iconFrom: ['com.samsung.tv.tvPlusDeeplinker'], color: '#2a9bd6' },
+    oceanvibes: { label: 'Ocean Vibes', kind: 'viewer', color: '#2a9bd6' },
+    freegames:  { label: 'Free Games', kind: 'app', ids: ['FDLMApISUt.PlayWorks'], names: [/free games/i], color: '#e2559c' },
+    grove:      { label: 'Grove Guardians', kind: 'soon', note: 'Coming soon', color: '#3e8e5a', glyph: 'leaf' },
+    diag:       { label: 'Diagnostics', kind: 'action', color: '#5b6b82', glyph: 'pulse' },
+    modules:    { label: 'TizenBrew modules', kind: 'action', color: '#5b6b82', glyph: 'grid' }
+  };
+  var RAILS = {
+    railWatch: ['tvbox', 'netflix', 'disney', 'prime', 'crave', 'youtube', 'cosmogo', 'tvplus'],
+    railPlay: ['freegames', 'grove'],
+    railMore: ['diag', 'modules']
+  };
 
-  var state = { apps: [], sources: null, showHidden: false, focus: 0 };
-  var $ = function (id) { return document.getElementById(id); };
+  var GLYPHS = {
+    hdmi: '<svg viewBox="0 0 96 96" fill="none" stroke="#e8eef5" stroke-width="6" stroke-linejoin="round"><path d="M14 34h68v16l-10 12H24L14 50z"/><path d="M30 46h36" stroke-linecap="round"/></svg>',
+    leaf: '<svg viewBox="0 0 96 96" fill="none" stroke="#e8eef5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M24 72c0-30 18-46 50-50 0 32-16 50-46 50"/><path d="M24 72l26-26"/></svg>',
+    pulse: '<svg viewBox="0 0 96 96" fill="none" stroke="#e8eef5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 50h18l8-20 12 38 10-26 6 8h22"/></svg>',
+    grid: '<svg viewBox="0 0 96 96" fill="#e8eef5"><rect x="18" y="18" width="24" height="24" rx="6"/><rect x="54" y="18" width="24" height="24" rx="6"/><rect x="18" y="54" width="24" height="24" rx="6"/><rect x="54" y="54" width="24" height="24" rx="6"/></svg>'
+  };
 
-  function toast(msg) {
-    var t = $('toast');
-    t.textContent = msg;
-    t.className = 'show';
-    clearTimeout(toast._h);
-    toast._h = setTimeout(function () { t.className = ''; }, 3200);
+  var state = { apps: [], resolved: {}, row: 0, col: 0, lastCol: {} };
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
+  }
+  function store(k, v) {
+    try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; }
+    return null;
   }
 
-  function setStatus(kind, html) {
-    $('status').innerHTML = '<span class="dot ' + kind + '"></span>' + html;
+  // ---- Colour helpers (Tizen 8's engine predates CSS color-mix) ----
+  function rgb(hex) { var n = parseInt(hex.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+  function rgba(hex, a) { var c = rgb(hex); return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; }
+  function shade(hex, t) { // t>0 toward white, t<0 toward black
+    var c = rgb(hex).map(function (v) { return Math.round(t > 0 ? v + (255 - v) * t : v * (1 + t)); });
+    return 'rgb(' + c.join(',') + ')';
+  }
+  function colorVars(hex) {
+    return '--c:' + hex + ';--c-wash:' + rgba(hex, 0.55) + ';--c-glow:' + rgba(hex, 0.45) +
+      ';--c-light:' + shade(hex, 0.12) + ';--c-dark:' + shade(hex, -0.3);
   }
 
+  // ---- Service ----
   function get(path) {
     return fetch(API + path, { cache: 'no-store' }).then(function (r) {
-      return r.json().then(function (j) {
-        if (!r.ok) throw new Error(j && j.error ? j.error : 'HTTP ' + r.status);
-        return j;
-      });
+      return r.json().then(function (j) { if (!r.ok) throw new Error(j && j.error ? j.error : 'HTTP ' + r.status); return j; });
     });
   }
-
-  // The service can take a few seconds to start after the module opens.
   function waitForService(tries) {
     return get('/ping').catch(function (e) {
       if (tries <= 0) throw e;
-      return new Promise(function (res) { setTimeout(res, 1000); }).then(function () { return waitForService(tries - 1); });
+      return new Promise(function (res) { setTimeout(res, 800); }).then(function () { return waitForService(tries - 1); });
     });
   }
 
-  function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-    });
-  }
-
-  function iconHtml(app) {
-    if (app && app.iconPath) {
-      return '<img src="' + API + '/icon?path=' + encodeURIComponent(app.iconPath) + '" alt="" onerror="this.outerHTML=\'<div class=ph>' +
-        esc((app.name || '?').charAt(0)) + '</div>\'">';
+  // ---- Resolve tiles to installed apps ----
+  function findApp(t) {
+    var apps = state.apps, i, j;
+    for (i = 0; t.ids && i < t.ids.length; i++) {
+      for (j = 0; j < apps.length; j++) if (apps[j].id === t.ids[i]) return apps[j];
     }
-    return '<div class="ph">' + esc(((app && app.name) || '?').charAt(0)) + '</div>';
+    for (i = 0; t.names && i < t.names.length; i++) {
+      var best = null;
+      for (j = 0; j < apps.length; j++) {
+        var a = apps[j];
+        if (!t.names[i].test(a.name || '')) continue;
+        if (t.exclude && (t.exclude.test(a.name || '') || t.exclude.test(a.id || ''))) continue;
+        if (!best || (a.show && !best.show)) best = a;
+      }
+      if (best) return best;
+    }
+    return null;
   }
-
-  function findTarget(t) {
-    var hits = [];
-    state.apps.forEach(function (a) {
-      var n = String(a.name || '').toLowerCase();
-      var id = String(a.id || '').toLowerCase();
-      var byId = t.ids && t.ids.indexOf(a.id) >= 0;
-      var byName = t.match.some(function (m) { return n.indexOf(m) >= 0 || id.indexOf(m.replace(/ /g, '')) >= 0; });
-      if (byId || byName) hits.push(a);
-    });
-    hits.sort(function (x, y) { return (y.show ? 1 : 0) - (x.show ? 1 : 0); });
-    return hits;
+  function appById(id) {
+    for (var i = 0; i < state.apps.length; i++) if (state.apps[i].id === id) return state.apps[i];
+    return null;
   }
-
-  function card(app, extraClass, tagHtml, labelOverride) {
-    var cls = 'card focusable' + (extraClass ? ' ' + extraClass : '') + (app && !app.show ? ' hidden-app' : '');
-    var name = labelOverride || (app ? app.name : '');
-    return '<div class="' + cls + '" data-id="' + esc(app ? app.id : '') + '" data-name="' + esc(name) + '">' +
-      iconHtml(app || { name: name }) +
-      '<div class="meta"><div class="name">' + esc(name) + '</div>' +
-      '<div class="id">' + esc(app ? app.id : 'not found on this TV') + '</div>' +
-      (tagHtml || '') + '</div></div>';
-  }
-
-  // One row per target, showing every matching app so the right ID can be picked.
-  // Test buttons that press remote keys through the TV's remote-control service.
-  var REMOTE_TESTS = [
-    { label: 'TV Box (HDMI)', keys: 'KEY_HDMI', note: 'switches to the HDMI input' },
-    { label: 'Input list', keys: 'KEY_SOURCE', note: 'opens the Source menu' },
-    { label: 'Live TV', keys: 'KEY_TV', note: 'TV / TV Plus channels' },
-    { label: 'Channel up', keys: 'KEY_CHUP', note: 'next channel' }
-  ];
-  var TOKEN_KEY = 'xd.tvToken';
-  function savedToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
-  function saveToken(t) { try { if (t) localStorage.setItem(TOKEN_KEY, t); } catch (e) { /* storage blocked */ } }
-
-  // Inputs row: every source the TV reports. OK switches to it; Red switches
-  // and then opens the TV viewer (some firmware needs that to show the picture).
-  function inputsRow() {
-    var s = state.sources;
-    var head = '<h3>Inputs<small>';
-    if (!s) return head + 'checking…</small></h3>';
-    var helper = state.apps.some(function (a) { return a.id === HELPER_ID; });
-    head += 'via XD Input helper: ' + (helper ? 'installed' : 'NOT installed') +
-      (s.current ? ' · now: ' + esc(s.current.type + ' ' + (s.current.number || '')) : '') +
-      (s.error ? ' · ' + esc(s.error) : '') + '</small></h3>';
-    var list = [];
-    (s.connected || []).forEach(function (x) { list.push({ x: x, on: true }); });
-    (s.disconnected || []).forEach(function (x) { list.push({ x: x, on: false }); });
-    if (!list.length) return head + '<div class="row"><div id="empty">The TV reported no input list.</div></div>';
-    return head + '<div class="row">' + list.map(function (it) {
-      var label = it.x.type + ' ' + it.x.number;
-      return '<div class="card focusable" data-src-type="' + esc(it.x.type) + '" data-src-num="' + esc(it.x.number) +
-        '" data-name="' + esc(label) + '"><div class="ph">' + esc(String(it.x.number)) + '</div><div class="meta">' +
-        '<div class="name">' + esc(it.x.name || label) + '</div><div class="id">' + esc(label) + '</div>' +
-        '<span class="tag ' + (it.on ? 'found' : '') + '">' + (it.on ? 'connected' : 'nothing plugged in') + '</span></div></div>';
-    }).join('') + '</div>';
-  }
-
-  // Inputs open the XD Input helper app, which has the TV-window permission
-  // the service lacks. "show" keeps the input on screen inside the helper;
-  // Back closes it and returns here. Red uses "exit" mode instead.
-  var HELPER_ID = 'XDInputApp.XDInput';
-  // TizenBrew's visible app (it resumes this launcher when reopened).
   function tizenBrewId() {
     var best = null;
     state.apps.forEach(function (a) {
@@ -132,174 +108,208 @@
     });
     return best && /^[A-Za-z0-9_.-]{3,80}$/.test(best.id) ? best.id : null;
   }
-  function switchSource(type, num, name, alt) {
-    var mode = alt ? 'exit' : 'show';
-    var data = 'source:' + type + num + '|mode:' + mode;
-    var tb = tizenBrewId();
-    if (tb) data += '|back:' + tb; // Back in the helper returns to TizenBrew (this launcher)
-    log('', 'XD Input: ' + name + ' (' + mode + ') …');
-    get('/appcontrol?id=' + encodeURIComponent(HELPER_ID) + '&data=' + encodeURIComponent(data))
-      .then(function () { log('ok', 'XD Input opened: ' + name + ' (' + mode + ')'); })
-      .catch(function (e) { log('bad', 'XD Input FAILED: ' + name + ' ' + e.message); });
+
+  function iconFor(key) {
+    var t = TILES[key];
+    if (t.glyph) return '<div class="glyph">' + GLYPHS[t.glyph] + '</div>';
+    var app = state.resolved[key];
+    if (!app && t.iconFrom) app = appById(t.iconFrom[0]);
+    if (app && app.iconPath) {
+      return '<img alt="" src="' + API + '/icon?path=' + encodeURIComponent(app.iconPath) + '" ' +
+        'onerror="this.outerHTML=\'<div class=mono>' + esc(t.label.charAt(0)) + '</div>\'">';
+    }
+    return '<div class="mono">' + esc(t.label.charAt(0)) + '</div>';
   }
 
-  function remoteRow() {
-    return '<h3>Remote buttons<small>first use shows an Allow prompt on the TV</small></h3><div class="row">' +
-      REMOTE_TESTS.map(function (r) {
-        return '<div class="card focusable" data-keys="' + esc(r.keys) + '" data-name="' + esc(r.label) + '">' +
-          '<div class="ph">⌁</div><div class="meta"><div class="name">' + esc(r.label) + '</div>' +
-          '<div class="id">' + esc(r.keys) + '</div><span class="tag">' + esc(r.note) + '</span></div></div>';
-      }).join('') + '</div>';
+  function tileHtml(key) {
+    var t = TILES[key];
+    var missing = t.kind === 'app' && !state.resolved[key];
+    var cls = 'tile focusable' + (t.kind === 'soon' ? ' soon' : '') + (missing ? ' missing' : '');
+    return '<div class="' + cls + '" data-tile="' + key + '" style="' + colorVars(t.color) + '">' +
+      '<div class="face">' + iconFor(key) + '</div>' +
+      '<div class="label">' + esc(t.label) + '</div>' +
+      (t.note ? '<div class="note">' + esc(t.note) + '</div>' : '') + '</div>';
   }
 
-  function pressKeys(keys, name) {
-    log('', 'keys ' + keys + ' … (answer Allow on the TV if asked)');
-    var tok = savedToken();
-    var via = '';
-    try { via = localStorage.getItem('xd.tvVia') || ''; } catch (e) { /* storage blocked */ }
-    get('/key?keys=' + encodeURIComponent(keys) + (tok ? '&token=' + encodeURIComponent(tok) : '') +
-        (via ? '&via=' + via : ''))
-      .then(function (r) {
-        saveToken(r.token);
-        try { if (r.via) localStorage.setItem('xd.tvVia', r.via); } catch (e) { /* storage blocked */ }
-        log('ok', 'keys OK: ' + name + ' via ' + r.via + ' ' + r.host + ':' + r.port + (r.token ? ' (approved)' : ''));
-      })
-      .catch(function (e) { log('bad', 'keys FAILED: ' + name + ' ' + e.message); });
+  function renderRails() {
+    Object.keys(RAILS).forEach(function (railId) {
+      RAILS[railId].forEach(function (key) {
+        if (TILES[key].kind === 'app') state.resolved[key] = findApp(TILES[key]);
+      });
+      $(railId).innerHTML = RAILS[railId].map(tileHtml).join('');
+    });
   }
 
-  function render() {
-    var t = TARGETS.map(function (tg) {
-      var hits = findTarget(tg);
-      var head = '<h3>' + esc(tg.label) + '<small>' + hits.length + ' match' + (hits.length === 1 ? '' : 'es') + '</small></h3>';
-      if (!hits.length) return head + '<div class="row">' + card(null, 'target', '<span class="tag missing">Not found</span>', tg.label) + '</div>';
-      return head + '<div class="row">' + hits.map(function (a) {
-        return card(a, 'target', '<span class="tag found">' + (a.show ? 'visible' : 'hidden') + '</span>');
-      }).join('') + '</div>';
-    }).join('');
-    $('targets').innerHTML = inputsRow() + t;
+  // ---- Focus and navigation ----
+  function rows() {
+    var out = [Array.prototype.slice.call(document.querySelectorAll('.hero-actions .focusable'))];
+    ['railWatch', 'railPlay', 'railMore'].forEach(function (id) {
+      out.push(Array.prototype.slice.call($(id).querySelectorAll('.focusable')));
+    });
+    return out;
+  }
 
-    var list = state.apps.filter(function (a) { return state.showHidden || a.show; })
-      .sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
-    $('allTitle').textContent = (state.showHidden ? 'All installed apps, including hidden' : 'All visible apps') +
-      ' (' + list.length + ')';
-    $('all').innerHTML = list.length ? list.map(function (a) {
-      return card(a, '', a.show ? '' : '<span class="tag">hidden</span>');
-    }).join('') : '<div id="empty">No apps returned.</div>';
+  function applyFocus(save) {
+    var all = rows();
+    if (!all[state.row] || !all[state.row].length) { state.row = 0; state.col = 0; }
+    state.col = Math.max(0, Math.min(state.col, all[state.row].length - 1));
+    document.querySelectorAll('.focused').forEach(function (el) { el.classList.remove('focused'); });
+    var el = all[state.row][state.col];
+    if (!el) return;
+    el.classList.add('focused');
 
-    var items = focusables();
-    if (state.focus >= items.length) state.focus = 0;
+    // Vertical: the hero stays put for the top row, then the shelves slide up.
+    var shift = 0;
+    if (state.row > 0) {
+      var shelf = el.closest('.shelf');
+      shift = Math.max(0, shelf.offsetTop - 250);
+    }
+    $('home').style.transform = 'translateY(' + (-shift) + 'px)';
+    document.body.classList.toggle('browsing', state.row > 0);
+
+    // Horizontal: keep the focused tile inside the safe area.
+    if (state.row > 0) {
+      var rail = el.parentNode;
+      var step = el.offsetWidth + 28;
+      var visible = Math.floor((1920 - 160) / step);
+      var first = Math.max(0, state.col - visible + 2);
+      rail.style.transform = 'translateX(' + (-first * step) + 'px)';
+    }
+
+    // Tint the room with the focused app's colour.
+    var key = el.getAttribute('data-tile');
+    var t = TILES[key];
+    document.body.style.setProperty('--tint', t ? rgba(t.color, 0.35) : 'transparent');
+
+    state.lastCol[state.row] = state.col;
+    if (save !== false) store('xd.focus', state.row + ',' + state.col);
+  }
+
+  function move(dx, dy) {
+    var all = rows();
+    if (dy) {
+      var next = state.row + dy;
+      while (next >= 0 && next < all.length && !all[next].length) next += dy;
+      if (next < 0 || next >= all.length) return;
+      state.row = next;
+      state.col = state.lastCol[next] != null ? state.lastCol[next] : 0;
+    } else {
+      var c = state.col + dx;
+      if (c < 0 || c >= all[state.row].length) return;
+      state.col = c;
+    }
     applyFocus();
   }
 
-  function focusables() { return Array.prototype.slice.call(document.querySelectorAll('.focusable')); }
-
-  function applyFocus() {
-    var items = focusables();
-    items.forEach(function (el, i) { el.classList.toggle('focused', i === state.focus); });
-    var el = items[state.focus];
-    if (!el) return;
-    var scroller = $('scroller');
-    var content = $('content');
-    var top = el.offsetTop;
-    var view = scroller.clientHeight;
-    var maxShift = Math.max(0, content.scrollHeight - view);
-    var shift = Math.min(maxShift, Math.max(0, top - view / 3));
-    content.style.transform = 'translateY(' + (-shift) + 'px)';
+  // ---- Opening things ----
+  var toastTimer;
+  function toast(msg) {
+    var t = $('toast');
+    t.textContent = msg;
+    t.className = 'show';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.className = ''; }, 3200);
   }
 
-  // Spatial navigation: pick the nearest card in the pressed direction.
-  function move(dir) {
-    var items = focusables();
-    var cur = items[state.focus];
-    if (!cur) return;
-    var a = cur.getBoundingClientRect();
-    var ax = a.left + a.width / 2, ay = a.top + a.height / 2;
-    var best = -1, bestScore = Infinity;
-    items.forEach(function (el, i) {
-      if (i === state.focus) return;
-      var b = el.getBoundingClientRect();
-      var bx = b.left + b.width / 2, by = b.top + b.height / 2;
-      var dx = bx - ax, dy = by - ay;
-      var ok = (dir === 'left' && dx < -5) || (dir === 'right' && dx > 5) || (dir === 'up' && dy < -5) || (dir === 'down' && dy > 5);
-      if (!ok) return;
-      var primary = (dir === 'left' || dir === 'right') ? Math.abs(dx) : Math.abs(dy);
-      var cross = (dir === 'left' || dir === 'right') ? Math.abs(dy) : Math.abs(dx);
-      var score = primary + cross * 3;
-      if (score < bestScore) { bestScore = score; best = i; }
-    });
-    if (best >= 0) { state.focus = best; applyFocus(); }
+  function open(key) {
+    var t = TILES[key];
+    if (!t) return;
+    if (t.kind === 'soon') return toast(t.label + ' is coming soon.');
+    if (t.kind === 'action') return runAction(key);
+    if (t.kind === 'viewer') {
+      return get('/launch?id=' + encodeURIComponent(TV_VIEWER))
+        .catch(function () { toast('Live TV did not open. Try again in a moment.'); });
+    }
+    if (t.kind === 'input') {
+      var data = 'source:' + t.source + '|mode:show';
+      var tb = tizenBrewId();
+      if (tb) data += '|back:' + tb;
+      return get('/appcontrol?id=' + encodeURIComponent(HELPER_ID) + '&data=' + encodeURIComponent(data))
+        .catch(function () { toast('The TV box needs the XD Input helper. Open Diagnostics to check it.'); });
+    }
+    var app = state.resolved[key];
+    if (!app) return toast(t.label + ' is not installed on this TV.');
+    get('/launch?id=' + encodeURIComponent(app.id))
+      .catch(function () { toast(t.label + ' did not open. Try again in a moment.'); });
   }
 
-  var logLines = [];
-  function log(kind, msg) {
-    var d = new Date();
-    var ts = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
-    logLines.unshift('<div class="' + kind + '">' + ts + '  ' + esc(msg) + '</div>');
-    logLines = logLines.slice(0, 5);
-    $('log').innerHTML = logLines.join('');
+  function runAction(key) {
+    if (key === 'modules') { if (history.length > 1) history.back(); return; }
+    if (key === 'diag') openDiagnostics();
   }
 
-  // mode: 'launch' uses tizen.application.launch, 'control' uses launchAppControl.
-  function launchFocused(mode) {
-    var el = focusables()[state.focus];
-    if (!el) return;
-    var keys = el.getAttribute('data-keys');
-    if (keys) { pressKeys(keys, el.getAttribute('data-name')); return; }
-    var srcType = el.getAttribute('data-src-type');
-    if (srcType) { switchSource(srcType, el.getAttribute('data-src-num'), el.getAttribute('data-name'), mode === 'control'); return; }
-    var id = el.getAttribute('data-id');
-    var name = el.getAttribute('data-name');
-    if (!id) { log('bad', name + ': not installed on this TV'); return; }
-    var path = mode === 'control' ? '/appcontrol?id=' : '/launch?id=';
-    var how = mode === 'control' ? 'app-control' : 'launch';
-    toast('Opening ' + name + '…');
-    log('', how + ' ' + id + ' …');
-    get(path + encodeURIComponent(id))
-      .then(function () { log('ok', how + ' OK: ' + name + ' (' + id + ')'); })
-      .catch(function (e) { log('bad', how + ' FAILED: ' + name + ' (' + id + ') ' + e.message); });
-  }
-
-  function load() {
-    setStatus('', 'Connecting to service…');
-    var build = window.XD_BUILD || {};
-    var bootInfo = {};
-    return waitForService(15)
-      // Ask the service to run the core from the same commit as this screen.
-      .then(function () { return get('/boot?ref=' + encodeURIComponent(build.sha || 'main')); })
-      .then(function (b) { bootInfo = b || {}; return get('/info'); })
-      .then(function (info) {
-        var ref = bootInfo.coreRef ? String(bootInfo.coreRef).slice(0, 7) : 'pinned';
-        setStatus('ok', 'Service <b>v' + esc(info.serviceVersion) + '</b> · build <b>' + esc(ref) + '</b> · ' +
-          esc(info.model || 'unknown model'));
-        if (bootInfo.error) log('bad', 'service update failed, using previous core: ' + bootInfo.error);
-        return get('/apps');
-      })
-      .then(function (data) { state.apps = data.apps || []; render();
-        return get('/sources').catch(function (e) { return { tvwindow: false, error: e.message }; }); })
-      .then(function (src) { state.sources = src; render(); })
-      .catch(function (e) {
-        setStatus('bad', 'Service unavailable: ' + esc(e.message));
-        $('all').innerHTML = '<div id="empty">The launcher service did not respond. Close TizenBrew fully and open it again.</div>';
+  // Swap this screen for the diagnostics screen from the same build.
+  function openDiagnostics() {
+    window.XD_MODE = 'diag';
+    var base = build.base || '';
+    var bust = build.sha ? '' : '?v=' + Date.now();
+    fetch(base + 'diag.html' + bust).then(function (r) { return r.text(); }).then(function (html) {
+      Array.prototype.slice.call(document.querySelectorAll('link[rel=stylesheet]')).forEach(function (l) {
+        if (/main\.css/.test(l.href)) l.parentNode.removeChild(l);
       });
+      document.body.className = '';
+      document.body.removeAttribute('style');
+      var css = document.createElement('link');
+      css.rel = 'stylesheet';
+      css.href = base + 'diag.css' + bust;
+      document.head.appendChild(css);
+      $('root').innerHTML = html;
+      var s = document.createElement('script');
+      s.src = base + 'diag.js' + bust;
+      document.body.appendChild(s);
+    }).catch(function () { toast('Diagnostics could not load.'); });
   }
 
-  var KEY = { 37: 'left', 38: 'up', 39: 'right', 40: 'down' };
+  // ---- Clock and evening mode ----
+  var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  function tick() {
+    var d = new Date();
+    var h = d.getHours(), m = d.getMinutes();
+    var h12 = h % 12 || 12;
+    $('time').textContent = h12 + ':' + (m < 10 ? '0' : '') + m + (h < 12 ? ' AM' : ' PM');
+    $('day').textContent = DAYS[d.getDay()];
+    var mins = h * 60 + m, bed = BEDTIME.h * 60 + BEDTIME.m;
+    var evening = mins >= bed || h < 5;
+    document.body.classList.toggle('evening', evening);
+    $('heroKicker').textContent = evening ? 'Wind-down time' : 'Tonight at ' + (BEDTIME.h % 12 || 12) + ':' + (BEDTIME.m < 10 ? '0' : '') + BEDTIME.m;
+    $('heroSub').textContent = evening
+      ? 'Waves on Samsung TV Plus. Lights low, volume down.'
+      : 'Your bedtime channel on Samsung TV Plus, ready when you are.';
+  }
+
+  // ---- Keys ----
   document.addEventListener('keydown', function (e) {
-    $('lastKey').textContent = 'Last key: ' + (e.key || '?') + ' (' + e.keyCode + ')';
-    if (KEY[e.keyCode]) { e.preventDefault(); move(KEY[e.keyCode]); return; }
-    if (e.keyCode === 13) { e.preventDefault(); launchFocused('launch'); return; }
-    if (e.keyCode === 403) { launchFocused('control'); return; } // Red
-    if (e.keyCode === 405) { state.showHidden = !state.showHidden; state.focus = 0; render(); return; } // Yellow
-    if (e.keyCode === 406) { load(); return; } // Blue
-    // Back: TizenBrew opened this page by navigating to it, so going back in
-    // history returns to TizenBrew's own home screen and module list.
-    if (e.keyCode === 10009 || e.keyCode === 8 || e.key === 'GoBack' || e.key === 'XF86Back') {
-      e.preventDefault();
-      if (history.length > 1) history.back();
-      else log('bad', 'Back: no TizenBrew screen to return to. Press Home, then restart the TV.');
-      return;
+    if (window.XD_MODE === 'diag') return;
+    switch (e.keyCode) {
+      case 37: e.preventDefault(); move(-1, 0); break;
+      case 39: e.preventDefault(); move(1, 0); break;
+      case 38: e.preventDefault(); move(0, -1); break;
+      case 40: e.preventDefault(); move(0, 1); break;
+      case 13: {
+        e.preventDefault();
+        var el = rows()[state.row][state.col];
+        if (el) open(el.getAttribute('data-tile'));
+        break;
+      }
+      case 10009: case 8: // Back: this is home, so just return to the top.
+        e.preventDefault();
+        if (state.row !== 0) { state.row = 0; state.col = state.lastCol[0] || 0; applyFocus(); }
+        break;
     }
   });
 
-  load();
+  // ---- Start ----
+  window.XD_MODE = 'home';
+  tick();
+  setInterval(tick, 15000);
+  renderRails();
+  var saved = String(store('xd.focus') || '').split(',');
+  if (saved.length === 2) { state.row = parseInt(saved[0], 10) || 0; state.col = parseInt(saved[1], 10) || 0; }
+  applyFocus(false);
+
+  waitForService(20)
+    .then(function () { return get('/boot?ref=' + encodeURIComponent(build.sha || 'main')); })
+    .then(function () { return get('/apps'); })
+    .then(function (data) { state.apps = data.apps || []; renderRails(); applyFocus(false); })
+    .catch(function () { toast('Apps are still loading. Press OK on a tile to try again.'); });
 })();
