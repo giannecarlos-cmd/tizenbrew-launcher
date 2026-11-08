@@ -175,11 +175,17 @@
 
   function load() {
     setStatus('', 'Connecting to service…');
+    var build = window.XD_BUILD || {};
+    var bootInfo = {};
     return waitForService(15)
-      .then(function () { return get('/info'); })
+      // Ask the service to run the core from the same commit as this screen.
+      .then(function () { return get('/boot?ref=' + encodeURIComponent(build.sha || 'main')); })
+      .then(function (b) { bootInfo = b || {}; return get('/info'); })
       .then(function (info) {
-        setStatus('ok', 'Service <b>v' + esc(info.serviceVersion) + '</b> · ' + esc(info.model || 'unknown model') +
-          ' · Tizen <b>' + esc(info.platformVersion || '?') + '</b>');
+        var ref = bootInfo.coreRef ? String(bootInfo.coreRef).slice(0, 7) : 'pinned';
+        setStatus('ok', 'Service <b>v' + esc(info.serviceVersion) + '</b> · build <b>' + esc(ref) + '</b> · ' +
+          esc(info.model || 'unknown model'));
+        if (bootInfo.error) log('bad', 'service update failed, using previous core: ' + bootInfo.error);
         return get('/apps');
       })
       .then(function (data) { state.apps = data.apps || []; render(); })

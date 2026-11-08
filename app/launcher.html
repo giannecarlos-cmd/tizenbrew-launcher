@@ -14,28 +14,66 @@
 <div id="boot">Loading XD Launcher…</div>
 <div id="root"></div>
 <script>
-// Stable loader. The TV's web view caches this page, so it stays tiny and never
-// needs to change: it pulls the real markup, styles and script with a unique
-// query string on every launch, so updates always show up.
+// Stable, self-updating loader. This page is pinned with the module's version
+// tag and never needs to change. On every launch it asks GitHub for the newest
+// commit on main, then loads the real screen from that exact commit on jsDelivr.
+// Commit URLs never change, so no CDN or TV cache can serve stale files.
 (function () {
-  var v = Date.now();
-  var base = location.href.split('?')[0].replace(/[^\/]*$/, '');
+  var REPO = 'giannecarlos-cmd/tizenbrew-launcher';
+  var LAST_KEY = 'xd.lastSha';
+  var local = location.href.split('?')[0].replace(/[^\/]*$/, ''); // pinned copy via TizenBrew
+
+  function store(k, v) { try { if (v == null) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
   function fail(msg) { document.getElementById('boot').textContent = 'Could not load launcher: ' + msg; }
 
-  var css = document.createElement('link');
-  css.rel = 'stylesheet';
-  css.href = base + 'main.css?v=' + v;
-  document.head.appendChild(css);
+  function resolveSha() {
+    var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 4000);
+    return fetch('https://api.github.com/repos/' + REPO + '/commits/main', {
+      headers: { Accept: 'application/vnd.github.sha' }, cache: 'no-store', signal: ctl ? ctl.signal : undefined
+    }).then(function (r) {
+      clearTimeout(timer);
+      if (!r.ok) throw new Error('GitHub HTTP ' + r.status);
+      return r.text();
+    }).then(function (sha) {
+      sha = String(sha).trim();
+      if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error('bad sha');
+      store(LAST_KEY, sha);
+      return sha;
+    }).catch(function () {
+      clearTimeout(timer);
+      return store(LAST_KEY) || null; // last known commit, else the pinned copy
+    });
+  }
 
-  fetch(base + 'body.html?v=' + v, { cache: 'no-store' })
-    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-    .then(function (html) {
-      document.getElementById('root').innerHTML = html;
-      var s = document.createElement('script');
-      s.src = base + 'main.js?v=' + v;
-      s.onload = function () { var b = document.getElementById('boot'); if (b) b.parentNode.removeChild(b); };
-      s.onerror = function () { fail('main.js'); };
-      document.body.appendChild(s);
+  function start(sha) {
+    var base = sha ? 'https://cdn.jsdelivr.net/gh/' + REPO + '@' + sha + '/app/' : local;
+    var bust = sha ? '' : '?v=' + Date.now();
+    window.XD_BUILD = { sha: sha, base: base };
+
+    var css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = base + 'main.css' + bust;
+    document.head.appendChild(css);
+
+    return fetch(base + 'body.html' + bust, { cache: sha ? 'default' : 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(function (html) {
+        document.getElementById('root').innerHTML = html;
+        var s = document.createElement('script');
+        s.src = base + 'main.js' + bust;
+        s.onload = function () { var b = document.getElementById('boot'); if (b) b.parentNode.removeChild(b); };
+        s.onerror = function () { fail('main.js'); };
+        document.body.appendChild(s);
+      });
+  }
+
+  resolveSha()
+    .then(function (sha) {
+      return start(sha).catch(function (e) {
+        if (!sha) throw e;
+        return start(null); // commit copy unreachable: use the pinned copy
+      });
     })
     .catch(function (e) { fail(e.message); });
 })();
