@@ -259,6 +259,37 @@
       .catch(function (e) { log('bad', how + ' FAILED: ' + name + ' (' + id + ') ' + e.message); });
   }
 
+  // Icon check: what the TV reports for the main apps, and where their icon
+  // files actually are. Shown as text so a photo of it is enough to diagnose.
+  function iconCheck() {
+    var CHECK = [['Netflix', /netflix/i, 'netflix'], ['Prime Video', /prime video|primevideo/i, 'prime'],
+      ['YouTube', /^youtube$/i, 'youtube'], ['Samsung TV Plus', /tv ?plus/i, 'tvplus']];
+    var ids = [], lines = [];
+    CHECK.forEach(function (c) {
+      var a = state.apps.filter(function (x) { return c[1].test(x.name || '') || c[1].test(x.id || ''); })[0];
+      if (a) ids.push(a.id);
+    });
+    var box = $('iconcheck');
+    get('/icondiag?ids=' + encodeURIComponent(ids.join(','))).then(function (d) {
+      (d.apps || []).forEach(function (a) {
+        lines.push('<b>' + esc(a.id) + '</b> pkg=' + esc(a.packageId) + ' reported=' + esc(a.reported || 'none') +
+          (a.placeholder ? ' <span class="bad">(placeholder)</span>' : '') +
+          ' found=' + (a.found ? '<span class="ok">' + esc(a.found) + '</span>' : '<span class="bad">none</span>'));
+      });
+      box.innerHTML = lines.join('<br>') + '<br>Searching shared folders…';
+      var terms = CHECK.map(function (c) { return c[2]; });
+      return terms.reduce(function (p, term) {
+        return p.then(function () {
+          return get('/iconsearch?q=' + term).then(function (r) {
+            lines.push('<b>search "' + term + '"</b> ' + r.hits.length + ' hits' + (r.timedOut ? ' (timed out)' : '') + ': ' +
+              (r.hits.slice(0, 3).map(function (h) { return esc(h.path) + ' (' + Math.round(h.size / 1024) + 'KB)'; }).join(' | ') || 'none') +
+              (r.denied.length ? ' <span class="bad">no access: ' + esc(r.denied.join(', ')) + '</span>' : ''));
+          }).catch(function (e) { lines.push('search "' + term + '" failed: ' + esc(e.message)); });
+        });
+      }, Promise.resolve()).then(function () { box.innerHTML = lines.join('<br>'); });
+    }).catch(function (e) { box.textContent = 'Icon check failed: ' + e.message; });
+  }
+
   function load() {
     setStatus('', 'Connecting to service…');
     var build = window.XD_BUILD || {};
@@ -276,7 +307,7 @@
       })
       .then(function (data) { state.apps = data.apps || []; render();
         return get('/sources').catch(function (e) { return { tvwindow: false, error: e.message }; }); })
-      .then(function (src) { state.sources = src; render(); })
+      .then(function (src) { state.sources = src; render(); iconCheck(); })
       .catch(function (e) {
         setStatus('bad', 'Service unavailable: ' + esc(e.message));
         $('all').innerHTML = '<div id="empty">The launcher service did not respond. Close TizenBrew fully and open it again.</div>';

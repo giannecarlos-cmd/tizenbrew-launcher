@@ -11,7 +11,7 @@
 
 var fs = require('fs');
 
-var VERSION = '0.9.0';
+var VERSION = '0.9.1';
 
 function send(res, status, body, type) {
   res.writeHead(status, {
@@ -360,6 +360,47 @@ var routes = {
   // Every installed app, including hidden ones, so we can find system apps
   // such as the TV viewer (inputs) and Samsung TV Plus.
   // /icondiag?ids=a,b: how each app's icon was resolved (for troubleshooting).
+  // /iconsearch?q=netflix: image files whose path mentions q, in the TV's
+  // shared app and resource folders. Read-only, depth- and time-limited.
+  '/iconsearch': function (req, res, query) {
+    var q = String(query.q || '').toLowerCase();
+    if (!/^[a-z0-9_.-]{3,40}$/.test(q)) return send(res, 400, { error: 'q must be 3-40 letters, digits, . _ -' });
+    var roots = ['/opt/usr/globalapps', '/usr/apps', '/opt/usr/apps', '/opt/share', '/opt/usr/share', '/usr/share', '/opt/usr/home/owner/share', '/opt/usr/home/owner/apps_rw'];
+    var hits = [], visited = 0, pending = 0, finished = false, denied = [];
+    var deadline = Date.now() + 6000;
+    function done() {
+      if (finished || pending > 0) return;
+      finished = true;
+      hits.sort(function (a, b) { return b.size - a.size; });
+      send(res, 200, { q: q, visited: visited, hits: hits.slice(0, 25), denied: denied.slice(0, 10), timedOut: Date.now() > deadline });
+    }
+    function walk(dir, depth, matched) {
+      if (visited > 40000 || Date.now() > deadline) return;
+      pending++;
+      fs.readdir(dir, guard(function (err, names) {
+        if (err) { if (depth <= 1) denied.push(dir + ' (' + (err.code || 'error') + ')'); }
+        else {
+          names.forEach(function (name) {
+            visited++;
+            var full = dir + '/' + name;
+            var hit = matched || full.toLowerCase().indexOf(q) >= 0;
+            pending++;
+            fs.stat(full, guard(function (e2, st) {
+              if (!e2 && st) {
+                if (st.isDirectory() && depth < 6) walk(full, depth + 1, hit);
+                else if (st.isFile() && hit && isImage(name) && st.size > 400) hits.push({ path: full, size: st.size });
+              }
+              pending--; done();
+            }, function () { pending--; done(); }));
+          });
+        }
+        pending--; done();
+      }, function () { pending--; done(); }));
+    }
+    roots.forEach(function (r) { walk(r, 0, false); });
+    done();
+  },
+
   '/icondiag': function (req, res, query) {
     var ids = String(query.ids || '').split(',').slice(0, 20);
     var out = [], pending = ids.length;
