@@ -13,9 +13,11 @@
       "label": "TV box",
       "kind": "input",
       "source": "HDMI1",
-      "color": "#3f6fa8",
+      "color": "#1f9fb2",
       "glyph": "hdmi",
-      "pinned": true
+      "pinned": true,
+      "base": "#08313a",
+      "line": "IPTV on HDMI 1"
     },
     "oceanvibes": {
       "label": "Ocean Vibes",
@@ -27,7 +29,9 @@
         "com.samsung.tv.tvplus",
         "com.samsung.tv.tvPlusDeeplinker"
       ],
-      "source": "TV1"
+      "source": "TV1",
+      "base": "#06253b",
+      "line": "Bedtime waves"
     },
     "netflix": {
       "label": "Netflix",
@@ -38,7 +42,10 @@
       "names": [
         "^netflix$"
       ],
-      "color": "#e50914"
+      "color": "#e50914",
+      "base": "#1a0405",
+      "line": "Series and films",
+      "glyph": "play"
     },
     "disney": {
       "label": "Disney+",
@@ -48,7 +55,10 @@
         "disney"
       ],
       "exclude": "service|preview|widget",
-      "color": "#1a3fd1"
+      "color": "#2b5cf0",
+      "base": "#071447",
+      "line": "Family films and series",
+      "glyph": "play"
     },
     "prime": {
       "label": "Prime Video",
@@ -60,7 +70,10 @@
         "prime video"
       ],
       "exclude": "service",
-      "color": "#00a8e1"
+      "color": "#1fb4e8",
+      "base": "#0b1a24",
+      "line": "Movies, series and sport",
+      "glyph": "play"
     },
     "crave": {
       "label": "Crave",
@@ -71,7 +84,10 @@
       "names": [
         "^crave"
       ],
-      "color": "#1f5bff"
+      "color": "#2a63ff",
+      "base": "#06123d",
+      "line": "HBO and Canadian series",
+      "glyph": "play"
     },
     "youtube": {
       "label": "YouTube",
@@ -82,7 +98,10 @@
       "names": [
         "^youtube$"
       ],
-      "color": "#ff2a2a"
+      "color": "#ff1f3d",
+      "base": "#1c0507",
+      "line": "Videos and channels",
+      "glyph": "play"
     },
     "cosmogo": {
       "label": "CosmoGO",
@@ -94,16 +113,22 @@
         "cosmo",
         "cineplex"
       ],
-      "color": "#6b46d6"
+      "color": "#4f8dff",
+      "base": "#0a1638",
+      "line": "Rent and buy movies",
+      "glyph": "ticket"
     },
     "tvplus": {
-      "label": "Samsung TV Plus",
+      "label": "TV Plus",
       "kind": "viewer",
-      "color": "#2a9bd6",
+      "color": "#ff7a2f",
       "iconFrom": [
         "com.samsung.tv.tvplus",
         "com.samsung.tv.tvPlusDeeplinker"
-      ]
+      ],
+      "base": "#1d0e05",
+      "line": "Free live channels from Samsung",
+      "glyph": "live"
     },
     "freegames": {
       "label": "Free Games",
@@ -114,26 +139,34 @@
       "names": [
         "free games"
       ],
-      "color": "#e2559c"
+      "color": "#ff5fb0",
+      "base": "#2a0a1e",
+      "line": "Casual games",
+      "glyph": "game"
     },
     "grove": {
       "label": "Grove Guardians",
       "kind": "soon",
-      "note": "Coming soon",
-      "color": "#3e8e5a",
-      "glyph": "leaf"
+      "color": "#4fbf7a",
+      "glyph": "leaf",
+      "base": "#0b2416",
+      "line": "Coming soon"
     },
     "diag": {
       "label": "Diagnostics",
       "kind": "action",
-      "color": "#5b6b82",
-      "glyph": "pulse"
+      "color": "#7c8ba3",
+      "glyph": "pulse",
+      "base": "#121a26",
+      "line": "Check apps and inputs"
     },
     "modules": {
       "label": "TizenBrew",
       "kind": "action",
-      "color": "#5b6b82",
-      "glyph": "grid"
+      "color": "#7c8ba3",
+      "glyph": "grid",
+      "base": "#121a26",
+      "line": "Modules and settings"
     }
   },
   "shelves": [
@@ -183,5 +216,6 @@
         "modules"
       ]
     }
-  ]
+  ],
+  "_cards": "Signature cards: every tile uses the app's colour (color over base), its name in Lumen's typeface, a short line, and a Lumen glyph. No logos."
 }

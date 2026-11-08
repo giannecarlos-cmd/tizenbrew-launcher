@@ -61,6 +61,10 @@
   var GLYPHS = {
     hdmi: '<svg viewBox="0 0 96 96" fill="none" stroke="#e8eef5" stroke-width="6" stroke-linejoin="round"><path d="M14 34h68v16l-10 12H24L14 50z"/><path d="M30 46h36" stroke-linecap="round"/></svg>',
     wave: '<svg viewBox="0 0 96 96" fill="none" stroke="#e8eef5" stroke-width="6" stroke-linecap="round"><path d="M10 40c8-8 16-8 24 0s16 8 24 0 16-8 24 0"/><path d="M10 58c8-8 16-8 24 0s16 8 24 0 16-8 24 0" opacity=".6"/></svg>',
+    play: '<svg viewBox="0 0 96 96" fill="#fff"><path d="M30 18l50 30-50 30z"/></svg>',
+    live: '<svg viewBox="0 0 96 96" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"><circle cx="48" cy="48" r="9" fill="#fff" stroke="none"/><path d="M28 28a28 28 0 0 0 0 40M68 28a28 28 0 0 1 0 40"/><path d="M16 16a45 45 0 0 0 0 64M80 16a45 45 0 0 1 0 64" opacity=".6"/></svg>',
+    game: '<svg viewBox="0 0 96 96" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 32h52c8 0 14 8 14 20v6c0 8-8 12-14 6l-8-8H30l-8 8c-6 6-14 2-14-6v-6c0-12 6-20 14-20z"/><path d="M30 44v12M24 50h12"/><circle cx="64" cy="46" r="3" fill="#fff"/><circle cx="72" cy="54" r="3" fill="#fff"/></svg>',
+    ticket: '<svg viewBox="0 0 96 96" fill="none" stroke="#fff" stroke-width="6" stroke-linejoin="round"><path d="M14 28h68v12a8 8 0 0 0 0 16v12H14V56a8 8 0 0 0 0-16z"/><path d="M58 30v36" stroke-dasharray="6 6"/></svg>',
     leaf: '<svg viewBox="0 0 96 96" fill="none" stroke="#e8eef5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M24 72c0-30 18-46 50-50 0 32-16 50-46 50"/><path d="M24 72l26-26"/></svg>',
     pulse: '<svg viewBox="0 0 96 96" fill="none" stroke="#e8eef5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 50h18l8-20 12 38 10-26 6 8h22"/></svg>',
     grid: '<svg viewBox="0 0 96 96" fill="#e8eef5"><rect x="18" y="18" width="24" height="24" rx="6"/><rect x="54" y="18" width="24" height="24" rx="6"/><rect x="18" y="54" width="24" height="24" rx="6"/><rect x="54" y="54" width="24" height="24" rx="6"/></svg>'
@@ -71,7 +75,7 @@
     Object.keys(cfg.tiles).forEach(function (key) {
       var t = cfg.tiles[key];
       TILES[key] = {
-        key: key, label: t.label, kind: t.kind, color: t.color || '#3a4b66', glyph: t.glyph, note: t.note,
+        key: key, label: t.label, kind: t.kind, color: t.color || '#3a4b66', base: t.base || '#0c1726', line: t.line || '', glyph: t.glyph || 'play',
         source: t.source, pinned: !!t.pinned, ids: t.ids || [], iconFrom: t.iconFrom || [],
         names: (t.names || []).map(function (n) { return new RegExp(n, 'i'); }),
         exclude: t.exclude ? new RegExp(t.exclude, 'i') : null
@@ -100,12 +104,6 @@
   function resolveAll() {
     Object.keys(TILES).forEach(function (k) { if (TILES[k].kind === 'app') state.resolved[k] = findApp(TILES[k]); });
   }
-  function iconIds(key) {
-    var t = TILES[key];
-    var app = state.resolved[key];
-    if (app) return [app.id];
-    return t.iconFrom.filter(function (id) { return !!appById(id); });
-  }
   function tizenBrewId() {
     var best = null;
     state.apps.forEach(function (a) {
@@ -113,62 +111,6 @@
       if (!best || (a.show && !best.show)) best = a;
     });
     return best && /^[A-Za-z0-9_.-]{3,80}$/.test(best.id) ? best.id : null;
-  }
-
-  // ---------------------------------------------------------------- icon art
-  // Each app's own icon is drawn once into a tiny canvas. Scaled up, that tiny
-  // image becomes a soft glowing backdrop (no CSS blur needed, so it's cheap),
-  // and its dominant colour tints the tile, the focus light and the stage.
-  var art = {};            // key -> { url, wash, color } | null
-  var artWaiting = {};     // key -> [callbacks]
-  function loadArt(key, cb) {
-    if (art[key] !== undefined) return cb(art[key]);
-    if (artWaiting[key]) { artWaiting[key].push(cb); return; }
-    var ids = iconIds(key);
-    if (!ids.length) { art[key] = null; return cb(null); }
-    artWaiting[key] = [cb];
-    var img = new Image();
-    img.crossOrigin = 'anonymous';
-    function finish(result) {
-      art[key] = result;
-      var cbs = artWaiting[key] || [];
-      delete artWaiting[key];
-      cbs.forEach(function (f) { f(result); });
-    }
-    img.onload = function () {
-      var result = { url: img.src, wash: null, color: null };
-      try {
-        // 24x24 to find the colour; 4x4 for the wash, which scales up into a
-        // smooth colour field rather than a blurry copy of the icon.
-        var c = document.createElement('canvas');
-        c.width = 24; c.height = 24;
-        var g = c.getContext('2d');
-        g.drawImage(img, 0, 0, 24, 24);
-        result.color = dominant(g.getImageData(0, 0, 24, 24).data);
-        var w = document.createElement('canvas');
-        w.width = 4; w.height = 4;
-        w.getContext('2d').drawImage(c, 0, 0, 4, 4);
-        result.wash = w.toDataURL('image/png');
-      } catch (e) { /* canvas blocked: keep the crisp icon only */ }
-      finish(result);
-    };
-    img.onerror = function () { finish(null); };
-    img.src = API + '/appicon?id=' + encodeURIComponent(ids.join(','));
-  }
-  // Average of the vivid pixels; falls back to the plain average.
-  function dominant(px) {
-    var r = 0, g = 0, b = 0, w = 0, ar = 0, ag = 0, ab = 0, n = 0;
-    for (var i = 0; i < px.length; i += 4) {
-      if (px[i + 3] < 128) continue;
-      var R = px[i], G = px[i + 1], B = px[i + 2];
-      var max = Math.max(R, G, B), min = Math.min(R, G, B);
-      var sat = max ? (max - min) / max : 0;
-      ar += R; ag += G; ab += B; n++;
-      if (sat > 0.35 && max > 60) { var wt = sat * max; r += R * wt; g += G * wt; b += B * wt; w += wt; }
-    }
-    if (w > 0) return toHex([r / w, g / w, b / w]);
-    if (n > 0) return toHex([ar / n, ag / n, ab / n]);
-    return null;
   }
 
   // ---------------------------------------------------------------- usage
@@ -201,46 +143,24 @@
   }
 
   // ---------------------------------------------------------------- tiles
+  // Signature cards: one design for every tile. The app's colour lit over its
+  // base, its name in Lumen's typeface, a short line, and a Lumen symbol.
+  function cardStyle(t) {
+    return colorVars(t.color) + ';--base:' + t.base;
+  }
+  function cardInner(t) {
+    return '<div class="sig-light"></div>' +
+      '<div class="sig-glyph">' + (GLYPHS[t.glyph] || GLYPHS.play) + '</div>' +
+      '<div class="sig-name">' + esc(t.label) + '</div>' +
+      (t.line ? '<div class="sig-line">' + esc(t.line) + '</div>' : '');
+  }
   function tileHtml(key, size) {
     var t = TILES[key];
     if (!t) return '';
     var missing = t.kind === 'app' && !state.resolved[key];
-    var cls = 'tile focusable size-' + (size || 'normal') + (t.kind === 'soon' ? ' soon' : '') + (missing ? ' missing' : '') + (t.glyph ? ' has-glyph' : '');
-    var icon = t.glyph && !iconIds(key).length
-      ? '<div class="glyph">' + GLYPHS[t.glyph] + '</div>'
-      : '<div class="mono">' + esc(t.label.charAt(0)) + '</div>';
-    if (t.glyph && key === 'tvbox') icon = '<div class="glyph">' + GLYPHS.hdmi + '</div>';
-    return '<div class="' + cls + '" data-tile="' + key + '" style="' + colorVars(t.color) + '">' +
-      '<div class="face"><div class="wash"></div><div class="shade"></div>' + icon + '</div>' +
-      '<div class="label">' + esc(t.label) + '</div>' +
-      (t.note ? '<div class="note">' + esc(t.note) + '</div>' : '') + '</div>';
-  }
-
-  // Swap in the app's own icon and its colour once they're loaded.
-  function dressTile(el) {
-    var key = el.getAttribute('data-tile');
-    var t = TILES[key];
-    if (!t || key === 'tvbox' || t.kind === 'action' || t.kind === 'soon') return;
-    loadArt(key, function (a) {
-      var face = el.querySelector('.face');
-      if (!a) {
-        // No icon on this TV: a glyph if we have one, otherwise the app's name
-        // set in Lumen's typeface on its colour (never an imitation logo).
-        var mono = face.querySelector('.mono');
-        if (!mono) return;
-        if (t.glyph && GLYPHS[t.glyph]) mono.outerHTML = '<div class="glyph">' + GLYPHS[t.glyph] + '</div>';
-        else { mono.outerHTML = '<div class="namecard">' + esc(t.label) + '</div>'; el.classList.add('has-name'); }
-        return;
-      }
-      var holder = face.querySelector('.mono, .glyph');
-      var img = document.createElement('img');
-      img.className = 'icon';
-      img.alt = '';
-      img.src = a.url;
-      if (holder) face.replaceChild(img, holder); else face.appendChild(img);
-      if (a.wash) face.querySelector('.wash').style.backgroundImage = 'url(' + a.wash + ')';
-      if (a.color) { el.setAttribute('style', colorVars(a.color)); el.setAttribute('data-color', a.color); }
-    });
+    var cls = 'tile focusable size-' + (size || 'normal') + (t.kind === 'soon' ? ' soon' : '') + (missing ? ' missing' : '');
+    return '<div class="' + cls + '" data-tile="' + key + '" style="' + cardStyle(t) + '">' +
+      '<div class="face sig">' + cardInner(t) + '</div></div>';
   }
 
   function renderShelves() {
@@ -256,7 +176,6 @@
         '<h2>' + esc(sh.title) + '</h2><div class="rail" id="rail-' + sh.id + '">' +
         keys.map(function (k) { return tileHtml(k, sh.size); }).join('') + '</div></section>';
     }).join('');
-    Array.prototype.forEach.call(document.querySelectorAll('.tile'), dressTile);
     rowCache = null;
     focusedEl = null;
     railShift = {};
@@ -324,23 +243,10 @@
 
   function paintArtScene(key) {
     var t = TILES[key];
-    var canvas = document.querySelector('.art-wash');
-    var holder = document.querySelector('.art-icon');
-    var g = canvas.getContext('2d');
-    function flat(hex) { g.fillStyle = hex; g.fillRect(0, 0, canvas.width, canvas.height); }
-    flat(shade(t.color, -0.55));
-    holder.innerHTML = key === 'tvbox' ? '<div class="glyph">' + GLYPHS.hdmi + '</div>' : '<div class="namecard">' + esc(t.label) + '</div>';
-    holder.setAttribute('style', colorVars(t.color));
-    if (key === 'tvbox') return;
-    loadArt(key, function (a) {
-      if (!a) return;
-      var img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = function () { try { g.drawImage(img, 0, 0, canvas.width, canvas.height); } catch (e) { /* ignore */ } };
-      img.src = a.url;
-      holder.innerHTML = '<img class="icon" alt="" src="' + a.url + '">';
-      if (a.color) holder.setAttribute('style', colorVars(a.color));
-    });
+    var stage = $('stage');
+    stage.setAttribute('style', cardStyle(t));
+    var card = document.querySelector('.art-card');
+    card.innerHTML = cardInner(t);
   }
 
   // ---------------------------------------------------------------- focus
@@ -391,7 +297,7 @@
 
     // The wallpaper's soft light glides to the focused tile, in its colour.
     var key = el.getAttribute('data-tile');
-    var color = el.getAttribute('data-color') || (TILES[key] && TILES[key].color) || '#9fd3e6';
+    var color = (TILES[key] && TILES[key].color) || '#9fd3e6';
     if (!wallLight) wallLight = document.querySelector('#wall .focuslight');
     if (wallLight) {
       wallLight.style.transform = 'translate(' + Math.round(cx) + 'px,' + Math.round(cy) + 'px)';
@@ -592,7 +498,6 @@
       .then(function () { return get('/apps'); })
       .then(function (data) {
         state.apps = data.apps || [];
-        art = {};
         renderShelves();
         renderStage(true);
         applyFocus(false);

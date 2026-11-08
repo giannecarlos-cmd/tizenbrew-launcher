@@ -73,20 +73,16 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 @keyframes drift { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @keyframes breathe { 0%, 100% { opacity: .35; } 50% { opacity: .85; } }
 
-/* Art scene: the app's own icon, as a huge soft wash plus the crisp icon. */
-.scene-art { -webkit-mask-image: linear-gradient(180deg, #000 62%, transparent); mask-image: linear-gradient(180deg, #000 62%, transparent); }
-.scene-art .art-wash { position: absolute; left: 25%; top: -25%; width: 90%; height: 150%; opacity: .6; image-rendering: auto;
-  -webkit-mask-image: radial-gradient(closest-side, #000 20%, transparent); mask-image: radial-gradient(closest-side, #000 20%, transparent); }
+/* Art scene: the app's colour fills the stage; its signature card, large. */
+.scene-art { background: linear-gradient(90deg, rgba(5, 8, 15, .2), rgba(5, 8, 15, 0)), var(--base, #0c1726);
+  -webkit-mask-image: linear-gradient(180deg, #000 62%, transparent); mask-image: linear-gradient(180deg, #000 62%, transparent); }
+.scene-art .art-light { position: absolute; right: -10%; top: -30%; width: 90%; height: 150%; border-radius: 50%;
+  background: radial-gradient(closest-side, var(--c-glow, rgba(159, 211, 230, .45)), transparent); opacity: .9; }
 .scene-art::after { content: ''; position: absolute; inset: 0;
-  background: linear-gradient(90deg, rgba(5, 8, 15, .85) 0%, rgba(5, 8, 15, .45) 45%, rgba(5, 8, 15, 0) 75%); }
-.scene-art .art-icon { position: absolute; z-index: 1; right: 240px; top: 150px; width: 280px; height: 280px; border-radius: 64px; overflow: hidden;
-  display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(150deg, var(--c-light, #4a5b76), var(--c-dark, #28354a));
-  box-shadow: 0 40px 80px rgba(0, 0, 0, .55), 0 0 120px var(--c-glow, rgba(159, 211, 230, .35)); }
-.scene-art .art-icon img { width: 100%; height: 100%; object-fit: cover; }
-.scene-art .art-icon .mono { font-family: var(--serif); font-size: 150px; font-weight: 600; color: #fff; }
-.scene-art .art-icon .namecard { font-family: var(--sans); font-weight: 700; font-size: 52px; color: #fff; text-align: center; padding: 0 20px; }
-.scene-art .art-icon .glyph svg { width: 190px; height: 190px; }
+  background: linear-gradient(90deg, rgba(5, 8, 15, .85) 0%, rgba(5, 8, 15, .4) 45%, rgba(5, 8, 15, 0) 72%); }
+.scene-art .art-card { position: absolute; z-index: 1; right: 200px; top: 150px; width: 520px; height: 292px; border-radius: 34px;
+  --name: 64px; --line: 26px; --glyph: 64px;
+  box-shadow: 0 40px 90px rgba(0, 0, 0, .55), 0 0 140px var(--c-glow, rgba(159, 211, 230, .35)); }
 
 body.browsing .swell, body.browsing .sparkle { animation-play-state: paused; }
 body.lite .swell, body.lite .sparkle, body.lite #wall .shimmer { animation: none; }
@@ -125,40 +121,37 @@ body.browsing .topbar::before { opacity: 1; }
 .tile.size-large { --w: 400px; --h: 225px; --icon: 148px; }
 .tile.size-small { --w: 240px; --h: 135px; --icon: 76px; }
 .tile .face { position: relative; width: var(--w); height: var(--h); border-radius: 24px; overflow: hidden; will-change: transform;
-  background: linear-gradient(160deg, var(--c-dark, #1c2a40), var(--tide));
   box-shadow: 0 10px 22px rgba(0, 0, 0, .35);
-  display: flex; align-items: center; justify-content: center;
   transition: transform 160ms cubic-bezier(.2, .7, .2, 1); }
 .tile.size-small .face { border-radius: 18px; }
-/* Icon-art: the app's icon, tiny and scaled up, becomes a soft colour field. */
-.tile .face .wash { position: absolute; inset: -30%; background-size: cover; background-position: center; opacity: .9; image-rendering: auto; }
-.tile .face .shade { position: absolute; inset: 0;
-  background: radial-gradient(70% 90% at 50% 45%, rgba(5, 8, 15, 0), rgba(5, 8, 15, .55)),
-              linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, 0) 35%); }
-.tile .face img.icon { position: relative; width: var(--icon); height: var(--icon); border-radius: 22%; object-fit: cover;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, .5); }
-.tile .face .mono { position: relative; width: var(--icon); height: var(--icon); border-radius: 22%; display: flex; align-items: center; justify-content: center;
-  font-family: var(--serif); font-size: calc(var(--icon) * .5); font-weight: 600; color: #fff;
-  background: linear-gradient(150deg, var(--c-light, #4a5b76), var(--c-dark, #28354a));
-  box-shadow: 0 12px 28px rgba(0, 0, 0, .5); }
-.tile .face .namecard { position: relative; max-width: 86%; text-align: center; font-family: var(--sans); font-weight: 700;
-  font-size: calc(var(--icon) * .3); line-height: 1.05; letter-spacing: -.5px; color: #fff; text-shadow: 0 4px 18px rgba(0, 0, 0, .45); }
-.tile.has-name .face { background: radial-gradient(90% 120% at 30% 10%, var(--c-light, #4a5b76), var(--c-dark, #28354a)); }
-.tile .face .glyph { position: relative; width: var(--icon); height: var(--icon); display: flex; align-items: center; justify-content: center; }
-.tile .face .glyph svg { width: 80%; height: 80%; }
-.tile.has-glyph .face { background: radial-gradient(120% 140% at 18% 0%, var(--c-wash, rgba(42, 59, 85, .55)), transparent 62%), linear-gradient(160deg, var(--tide-2), var(--tide)); }
+/* ---- Signature cards ----
+   Every tile: the app's colour lit over its base, the app name in Lumen's
+   typeface, a short line, and a Lumen symbol. One layout, three sizes. */
+.sig { position: relative; overflow: hidden; color: #fff;
+  background: radial-gradient(120% 140% at 0% 0%, var(--c, #3a4b66) 0%, transparent 58%),
+              linear-gradient(135deg, var(--c-dark, #28354a) 0%, var(--base, #0c1726) 70%);
+  padding: calc(var(--name) * .5) calc(var(--name) * .6); display: flex; flex-direction: column; justify-content: flex-end; }
+.sig .sig-light { position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, 0) 38%),
+              radial-gradient(60% 80% at 100% 100%, rgba(0, 0, 0, .35), transparent 70%); }
+.sig .sig-glyph { position: absolute; top: calc(var(--name) * .45); left: calc(var(--name) * .6); width: var(--glyph); height: var(--glyph); opacity: .92; }
+.sig .sig-glyph svg { width: 100%; height: 100%; }
+.sig .sig-name { position: relative; font-family: var(--sans); font-weight: 700; font-size: var(--name); line-height: 1; letter-spacing: -.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 2px 16px rgba(0, 0, 0, .35); }
+.sig .sig-line { position: relative; margin-top: calc(var(--line) * .45); font-size: var(--line); font-weight: 500; line-height: 1.2; color: rgba(255, 255, 255, .78);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile { --name: 38px; --line: 20px; --glyph: 40px; }
+.tile.size-large { --name: 48px; --line: 22px; --glyph: 48px; }
+.tile.size-small { --name: 26px; --line: 16px; --glyph: 30px; }
+.tile.size-small .sig-line { display: none; }
+
 /* Focus ring and glow, drawn once and faded in. */
 .tile .face::after { content: ''; position: absolute; inset: 0; border-radius: inherit; opacity: 0;
   box-shadow: inset 0 0 0 4px rgba(232, 238, 245, .92);
   transition: opacity 160ms ease; }
 .tile.focused .face::after { opacity: 1; }
-.tile .label { margin-top: 16px; font-size: 24px; font-weight: 500; color: var(--fog); max-width: var(--w);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tile.size-small .label { font-size: 21px; margin-top: 12px; }
-.tile .note { font-size: 19px; color: var(--fog); opacity: .8; margin-top: 4px; }
 .tile.focused .face { transform: scale(1.08) translateY(-6px); }
-.tile.focused .label { color: var(--mist); }
-.tile.soon .face { background: linear-gradient(160deg, #0f1a2b, #0a121e); box-shadow: inset 0 0 0 2px rgba(138, 151, 168, .25); }
+.tile.soon .face { filter: saturate(.55) brightness(.8); }
 .tile.missing .face { opacity: .45; }
 
 #toast { position: absolute; z-index: 9; left: 50%; bottom: 56px; transform: translateX(-50%) translateY(20px);
