@@ -203,6 +203,14 @@
     if (e.keyCode === 403) { launchFocused('control'); return; } // Red
     if (e.keyCode === 405) { state.showHidden = !state.showHidden; state.focus = 0; render(); return; } // Yellow
     if (e.keyCode === 406) { load(); return; } // Blue
+    // Back: TizenBrew opened this page by navigating to it, so going back in
+    // history returns to TizenBrew's own home screen and module list.
+    if (e.keyCode === 10009 || e.keyCode === 8 || e.key === 'GoBack' || e.key === 'XF86Back') {
+      e.preventDefault();
+      if (history.length > 1) history.back();
+      else log('bad', 'Back: no TizenBrew screen to return to. Press Home, then restart the TV.');
+      return;
+    }
   });
 
   load();

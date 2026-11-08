@@ -28,4 +28,4 @@ The pinned tag only holds two stable bootstraps. On each launch `app/launcher.ht
 
 ## Remote keys (diagnostics screen)
 
-- Arrows: move · OK: launch · Red: app-control launch · Yellow: show hidden apps · Blue: reload
+- Arrows: move · OK: launch · Back: return to TizenBrew · Red: app-control launch · Yellow: show hidden apps · Blue: reload
