@@ -442,6 +442,8 @@
       '<div class="webgame-fps" id="webFps">Loading ' + t.label + '...</div>' +
       '<div class="webgame-hint">Back to close</div>';
     document.body.appendChild(wrap);
+    // nothing of Lumen is drawn while a game is open: the TV only has to draw the game
+    document.body.classList.add('webopen');
     var frame = wrap.querySelector('iframe');
     frame.src = t.url;
     web = { wrap: wrap, frames: 0, since: 0, raf: 0, slow: 0, samples: [] };
@@ -475,6 +477,7 @@
     var f = w.querySelector('iframe');
     try { f.src = 'about:blank'; } catch (e) { /* gone */ }
     w.parentNode.removeChild(w);
+    document.body.classList.remove('webopen');
     window.XD_MODE = 'home';
     veilIn();
   }

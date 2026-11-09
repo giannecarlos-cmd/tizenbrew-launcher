@@ -171,6 +171,15 @@
       "base": "#121a26",
       "line": "Check apps and inputs"
     },
+    "tvcheck": {
+      "label": "TV speed check",
+      "kind": "web",
+      "url": "https://grove-rift-tv-test.rcv-rarecard-vault.workers.dev/tv.html?bench",
+      "color": "#7c8ba3",
+      "glyph": "pulse",
+      "base": "#121a26",
+      "line": "How smoothly this TV draws games"
+    },
     "modules": {
       "label": "TizenBrew",
       "kind": "action",
@@ -225,6 +234,7 @@
       "size": "small",
       "tiles": [
         "diag",
+        "tvcheck",
         "modules"
       ]
     }

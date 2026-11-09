@@ -181,3 +181,4 @@ body.veil-now #veil { transition: none; }
 .webgame-fps { right: 32px; top: 28px; }
 .webgame-fps.good { color: #8fe3a8; } .webgame-fps.ok { color: #f0d080; } .webgame-fps.low { color: #ff9a8a; }
 .webgame-hint { left: 32px; top: 28px; color: #aab3c5; }
+body.webopen #wall, body.webopen #home, body.webopen .topbar, body.webopen #scrim, body.webopen #veil { display: none; }
