@@ -11,7 +11,7 @@
 
 var fs = require('fs');
 
-var VERSION = '0.10.0';
+var VERSION = '0.11.0';
 
 function send(res, status, body, type) {
   res.writeHead(status, {
@@ -351,28 +351,76 @@ function startWatch(id, back) {
   timers.__lumenWatchTimer = watchTimer;
 }
 
+// Ask the TV's local REST service whether an app is on screen. Samsung TVs
+// answer GET /api/v2/applications/<id> with { running, visible }. Calls back
+// with true/false, or null when the TV doesn't say (then we fall back).
+function appVisible(id, cb) {
+  var done = false;
+  function finish(v) { if (!done) { done = true; cb(v); } }
+  var t = later(guard(function () { finish(null); }), 1500);
+  try {
+    var req = require('http').get('http://127.0.0.1:8001/api/v2/applications/' + encodeURIComponent(id), guard(function (res) {
+      var body = '';
+      res.on('data', function (c) { body += c; });
+      res.on('end', guard(function () {
+        cancel(t);
+        if (!watch) return finish(null);
+        if (!watch.restNoted) { watch.restNoted = true; noteWatch('screen check: HTTP ' + res.statusCode + ' ' + body.slice(0, 60)); }
+        var j = null;
+        try { j = JSON.parse(body); } catch (e) { /* not JSON */ }
+        if (res.statusCode === 200 && j && typeof j.visible === 'boolean') return finish(j.visible);
+        finish(null);
+      }, function () { finish(null); }));
+    }, function () { finish(null); }));
+    req.on('error', guard(function () { cancel(t); finish(null); }));
+  } catch (e) {
+    cancel(t);
+    finish(null);
+  }
+}
+
+// Called with true when the watched app is on screen (or running), false when not.
+function onWatchState(present) {
+  if (!watch) return;
+  if (present) { watch.seen = true; watch.misses = 0; return; }
+  if (!watch.seen) {
+    // The app may take a moment to appear; give up quietly after ~20 s.
+    if (Date.now() - watch.since > 20000) stopWatch('never started');
+    return;
+  }
+  // Two misses in a row, so a brief blip inside the app doesn't count.
+  watch.misses++;
+  if (watch.misses < 2) return;
+  var back = watch.back, id = watch.id, how = watch.how;
+  stopWatch(how === 'screen' ? 'left the screen' : 'closed');
+  noteWatch('return to Lumen after ' + id);
+  try { tizen.application.launch(back, function () {}, function (e) { noteWatch('return failed ' + errText(e)); }); }
+  catch (e) { noteWatch('return failed ' + errText(e)); }
+}
+
 function checkWatch() {
   if (!watch) return stopWatch('none');
   if (Date.now() - watch.since > WATCH_MAX) return stopWatch('expired');
-  tizen.application.getAppsContext(guard(function (contexts) {
+  if (watch.busy) return;        // previous check still waiting on the TV
+  watch.busy = true;
+  var w = watch;
+  function idle() { w.busy = false; }
+  // Prefer "is it on screen?" (exiting many apps only hides them); fall back
+  // to "is it still running?" when the TV won't say.
+  appVisible(watch.id, guard(function (visible) {
     if (!watch) return;
-    var running = false;
-    for (var i = 0; i < contexts.length; i++) if (contexts[i].appId === watch.id) { running = true; break; }
-    if (running) { watch.seen = true; watch.misses = 0; return; }
-    if (!watch.seen) {
-      // The app may take a moment to appear; give up quietly after ~20 s.
-      if (Date.now() - watch.since > 20000) stopWatch('never started');
-      return;
+    idle();
+    if (visible !== null) {
+      if (watch.how !== 'screen') { watch.how = 'screen'; noteWatch('watching ' + watch.id + ' on screen'); }
+      return onWatchState(visible);
     }
-    // Two misses in a row, so a brief restart inside the app doesn't count.
-    watch.misses++;
-    if (watch.misses < 2) return;
-    var back = watch.back, id = watch.id;
-    stopWatch('closed');
-    noteWatch('return to Lumen after ' + id);
-    try { tizen.application.launch(back, function () {}, function (e) { noteWatch('return failed ' + errText(e)); }); }
-    catch (e) { noteWatch('return failed ' + errText(e)); }
-  }, function (e) { noteWatch('context error ' + errText(e)); }), guard(function (e) { noteWatch('context error ' + errText(e)); }));
+    if (watch.how !== 'running') { watch.how = 'running'; noteWatch('watching ' + watch.id + ' running (screen check unavailable)'); }
+    tizen.application.getAppsContext(guard(function (contexts) {
+      var running = false;
+      for (var i = 0; i < contexts.length; i++) if (contexts[i].appId === watch.id) { running = true; break; }
+      onWatchState(running);
+    }, function (e) { noteWatch('context error ' + errText(e)); }), guard(function (e) { noteWatch('context error ' + errText(e)); }));
+  }, function (e) { idle(); noteWatch('check error ' + errText(e)); }));
 }
 
 var routes = {
