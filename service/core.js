@@ -11,7 +11,7 @@
 
 var fs = require('fs');
 
-var VERSION = '0.9.1';
+var VERSION = '0.10.0';
 
 function send(res, status, body, type) {
   res.writeHead(status, {
@@ -313,6 +313,68 @@ function sendImage(res, path) {
   }, function () { send(res, 500, { error: 'read failed' }); }));
 }
 
+// ---------------------------------------------------------------------------
+// Return to Lumen. When an app opened from Lumen closes, the TV would normally
+// go to Samsung's home screen. The service keeps running in the background, so
+// it watches that app and reopens TizenBrew (which resumes Lumen) as soon as
+// the app is no longer running. Pressing Home inside the app leaves it running
+// in the background, so it does not trigger a return.
+// ---------------------------------------------------------------------------
+var watch = null;        // { id, back, seen, since }
+var watchTimer = null;
+// A self-update loads a fresh copy of this file while the old one may still
+// be watching. Both copies share Node's timers module, so the handle lives
+// there and a new copy stops the old one's watch.
+if (timers.__lumenWatchTimer) { try { timers.clearInterval(timers.__lumenWatchTimer); } catch (e) { /* gone */ } timers.__lumenWatchTimer = null; }
+var WATCH_EVERY = 1200;  // ms
+var WATCH_MAX = 8 * 3600 * 1000;
+var watchLog = [];
+
+function noteWatch(msg) {
+  watchLog.unshift(new Date().toISOString().slice(11, 19) + ' ' + msg);
+  watchLog = watchLog.slice(0, 12);
+}
+
+function stopWatch(reason) {
+  if (watchTimer) { timers.clearInterval(watchTimer); watchTimer = null; }
+  if (timers.__lumenWatchTimer) { timers.clearInterval(timers.__lumenWatchTimer); timers.__lumenWatchTimer = null; }
+  if (watch) noteWatch('stop ' + watch.id + ': ' + reason);
+  watch = null;
+}
+
+function startWatch(id, back) {
+  stopWatch('replaced');
+  if (!back || !/^[A-Za-z0-9_.-]{3,80}$/.test(back)) return;
+  watch = { id: id, back: back, seen: false, since: Date.now(), misses: 0 };
+  noteWatch('watch ' + id);
+  watchTimer = timers.setInterval(guard(checkWatch, function (e) { noteWatch('check error ' + errText(e)); }), WATCH_EVERY);
+  timers.__lumenWatchTimer = watchTimer;
+}
+
+function checkWatch() {
+  if (!watch) return stopWatch('none');
+  if (Date.now() - watch.since > WATCH_MAX) return stopWatch('expired');
+  tizen.application.getAppsContext(guard(function (contexts) {
+    if (!watch) return;
+    var running = false;
+    for (var i = 0; i < contexts.length; i++) if (contexts[i].appId === watch.id) { running = true; break; }
+    if (running) { watch.seen = true; watch.misses = 0; return; }
+    if (!watch.seen) {
+      // The app may take a moment to appear; give up quietly after ~20 s.
+      if (Date.now() - watch.since > 20000) stopWatch('never started');
+      return;
+    }
+    // Two misses in a row, so a brief restart inside the app doesn't count.
+    watch.misses++;
+    if (watch.misses < 2) return;
+    var back = watch.back, id = watch.id;
+    stopWatch('closed');
+    noteWatch('return to Lumen after ' + id);
+    try { tizen.application.launch(back, function () {}, function (e) { noteWatch('return failed ' + errText(e)); }); }
+    catch (e) { noteWatch('return failed ' + errText(e)); }
+  }, function (e) { noteWatch('context error ' + errText(e)); }), guard(function (e) { noteWatch('context error ' + errText(e)); }));
+}
+
 var routes = {
   // /key?keys=KEY_HDMI or KEY_1,KEY_2,KEY_ENTER, optional &token=<saved token>
   // and &via=lan|lo (the route that worked last time, remembered by the page).
@@ -480,12 +542,19 @@ var routes = {
     }
   },
 
+  // Return-to-Lumen status, for Diagnostics.
+  '/watch': function (req, res) {
+    send(res, 200, { watching: watch ? { id: watch.id, seen: watch.seen } : null, log: watchLog });
+  },
+
   '/launch': function (req, res, query) {
     if (!hasTizen()) return send(res, 503, { error: 'tizen API not available in service' });
     if (!query.id) return send(res, 400, { error: 'missing id' });
     try {
       tizen.application.launch(String(query.id), function () {
-        send(res, 200, { ok: true, id: query.id });
+        // ?back=<TizenBrew id>: come back to Lumen when this app closes.
+        if (query.back) startWatch(String(query.id), String(query.back));
+        send(res, 200, { ok: true, id: query.id, watching: !!watch });
       }, function (e) { fail(res, e); });
     } catch (e) {
       fail(res, e);

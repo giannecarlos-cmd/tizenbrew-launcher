@@ -291,6 +291,14 @@
     }).catch(function (e) { box.textContent = 'Icon check failed: ' + e.message; });
   }
 
+  // What the return-to-Lumen watcher has been doing.
+  function showWatch() {
+    get('/watch').then(function (w) {
+      (w.log || []).slice(0, 4).reverse().forEach(function (line) { log('', 'return-to-Lumen: ' + line); });
+      if (!w.log || !w.log.length) log('', 'return-to-Lumen: nothing watched yet');
+    }).catch(function () { /* older service */ });
+  }
+
   function load() {
     setStatus('', 'Connecting to service…');
     var build = window.XD_BUILD || {};
@@ -308,7 +316,7 @@
       })
       .then(function (data) { state.apps = data.apps || []; render();
         return get('/sources').catch(function (e) { return { tvwindow: false, error: e.message }; }); })
-      .then(function (src) { state.sources = src; render(); iconCheck(); })
+      .then(function (src) { state.sources = src; render(); iconCheck(); showWatch(); })
       .catch(function (e) {
         setStatus('bad', 'Service unavailable: ' + esc(e.message));
         $('all').innerHTML = '<div id="empty">The launcher service did not respond. Close TizenBrew fully and open it again.</div>';

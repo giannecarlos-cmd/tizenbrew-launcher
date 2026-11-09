@@ -333,7 +333,9 @@
     if (t.kind === 'action') return runAction(key);
     if (t.kind === 'viewer') {
       recordUse(key);
-      return get('/launch?id=' + encodeURIComponent(TV_VIEWER)).catch(function () { toast('Live TV did not open. Try again in a moment.'); });
+      var vb = tizenBrewId();
+      return get('/launch?id=' + encodeURIComponent(TV_VIEWER) + (vb ? '&back=' + encodeURIComponent(vb) : ''))
+        .catch(function () { toast('Live TV did not open. Try again in a moment.'); });
     }
     if (t.kind === 'input') {
       recordUse(key);
@@ -346,7 +348,10 @@
     var app = state.resolved[key];
     if (!app) return toast(t.label + ' is not installed on this TV.');
     recordUse(key);
-    get('/launch?id=' + encodeURIComponent(app.id)).catch(function () { toast(t.label + ' did not open. Try again in a moment.'); });
+    // back=: the service reopens Lumen when this app closes.
+    var back = tizenBrewId();
+    get('/launch?id=' + encodeURIComponent(app.id) + (back ? '&back=' + encodeURIComponent(back) : ''))
+      .catch(function () { toast(t.label + ' did not open. Try again in a moment.'); });
   }
   function runAction(key) {
     if (key === 'modules') { if (history.length > 1) history.back(); return; }
