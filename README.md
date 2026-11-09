@@ -27,6 +27,10 @@ The pinned tag only holds two stable bootstraps. On each launch `app/launcher.ht
 - `service/service.js` — stable Node bootstrap (ES5, Node 4) on `127.0.0.1:8190`: `/ping`, `/boot?ref=<sha>`.
 - `service/core.js` — the routes that bridge the page to the `tizen` API: `/info`, `/apps`, `/appicon?id=` (the app's own installed icon), `/launch?id=`, `/appcontrol?id=`, `/icon?path=`, `/sources` (input list), `/appcontrol?id=...&data=source:HDMI1|mode:show` (opens the XD Input helper), and `/key?keys=KEY_HDMI` (remote button presses through the TV's local remote-control service; the first use shows an Allow prompt on the TV).
 
+## YouTube through TizenTube
+
+The YouTube card opens the TizenTube module (ad-free) when it is installed in TizenBrew, and the regular YouTube app otherwise. TizenTube runs in TizenBrew's own window, so Lumen hands the window over the way TizenBrew's module list does (over TizenBrew's local socket on 8081), and asks the service to watch TizenBrew itself (`/watch?self=<id>`). When YouTube exits, the service reopens TizenBrew, which autolaunches Lumen. Lumen calls `/watch?stop=1` when it comes back.
+
 ## Remote keys
 
 Home: arrows move, OK opens, Back returns to the top row.

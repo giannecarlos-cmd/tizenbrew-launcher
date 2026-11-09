@@ -98,9 +98,10 @@
       "names": [
         "^youtube$"
       ],
+      "module": "tizentube",
       "color": "#ff1f3d",
       "base": "#1c0507",
-      "line": "Videos and channels",
+      "line": "Ad-free with TizenTube",
       "glyph": "play"
     },
     "cosmogo": {

@@ -76,7 +76,7 @@
       var t = cfg.tiles[key];
       TILES[key] = {
         key: key, label: t.label, kind: t.kind, color: t.color || '#3a4b66', base: t.base || '#0c1726', line: t.line || '', glyph: t.glyph || 'play',
-        source: t.source, pinned: !!t.pinned, ids: t.ids || [], iconFrom: t.iconFrom || [],
+        source: t.source, module: t.module || '', pinned: !!t.pinned, ids: t.ids || [], iconFrom: t.iconFrom || [],
         names: (t.names || []).map(function (n) { return new RegExp(n, 'i'); }),
         exclude: t.exclude ? new RegExp(t.exclude, 'i') : null
       };
@@ -368,6 +368,10 @@
       return get('/appcontrol?id=' + encodeURIComponent(HELPER_ID) + '&data=' + encodeURIComponent(data))
         .catch(function () { veilIn(); toast('The TV box needs the input helper. Open Diagnostics to check it.'); });
     }
+    if (t.module) return openModule(key, t);
+    launchApp(key, t);
+  }
+  function launchApp(key, t) {
     var app = state.resolved[key];
     if (!app) { veilIn(); return toast(t.label + ' is not installed on this TV.'); }
     recordUse(key);
@@ -375,6 +379,54 @@
     var back = tizenBrewId();
     get('/launch?id=' + encodeURIComponent(app.id) + (back ? '&back=' + encodeURIComponent(back) : ''))
       .catch(function () { veilIn(); toast(t.label + ' did not open. Try again in a moment.'); });
+  }
+  // A TizenBrew site module (TizenTube for YouTube) runs in TizenBrew's own
+  // window, so Lumen hands the window over the way TizenBrew's module list
+  // does: ask TizenBrew's service for the module, tell it which one is
+  // launching (it injects the module's script and starts its service), then
+  // go to the module's site. If the module isn't there, open the regular app.
+  var WS_GET_MODULES = 4, WS_LAUNCH_MODULE = 5;
+  function selfId() {
+    try { return tizen.application.getCurrentApplication().appInfo.id; } catch (e) { return tizenBrewId(); }
+  }
+  function openModule(key, t) {
+    var re = new RegExp(t.module, 'i'), done = false, asked = 0, ws, mod = null;
+    function finish() { done = true; clearTimeout(timer); }
+    function fallback() {
+      if (done) return;
+      finish();
+      try { ws.close(); } catch (e) { /* closed */ }
+      launchApp(key, t);
+    }
+    function go() {
+      recordUse(key);
+      var self = selfId();
+      var leave = function () { location.href = mod.appPath; };
+      if (!self) return leave();
+      get('/watch?self=' + encodeURIComponent(self)).then(leave, leave);
+    }
+    var timer = setTimeout(fallback, 5000);
+    try { ws = new WebSocket('ws://127.0.0.1:8081'); } catch (e) { return fallback(); }
+    ws.onerror = fallback;
+    ws.onopen = function () { asked++; ws.send(JSON.stringify({ type: WS_GET_MODULES, payload: false })); };
+    ws.onmessage = function (ev) {
+      var m;
+      try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (m.type === WS_LAUNCH_MODULE && mod && done) return go();
+      if (m.type !== WS_GET_MODULES || done) return;
+      var list = m.payload || [];
+      if (!list.length && asked < 2) { asked++; return ws.send(JSON.stringify({ type: WS_GET_MODULES, payload: true })); }
+      for (var i = 0; i < list.length && !mod; i++) {
+        var x = list[i];
+        if (x && x.packageType === 'mods' && x.appPath && (re.test(x.fullName || '') || re.test(x.name || '') || re.test(x.appName || ''))) mod = x;
+      }
+      if (!mod) return fallback();
+      finish();
+      (mod.keys || []).forEach(function (k) { try { tizen.tvinputdevice.registerKey(k); } catch (e) { /* not a key here */ } });
+      ws.send(JSON.stringify({ type: WS_LAUNCH_MODULE, payload: mod }));
+      // Modules that inject at document start wait for TizenBrew's go-ahead.
+      if (!mod.evaluateScriptOnDocumentStart) go();
+    };
   }
   function runAction(key) {
     if (key === 'modules') { if (history.length > 1) history.back(); return; }
@@ -523,7 +575,7 @@
 
     waitForService(20)
       .then(function () { return get('/boot?ref=' + encodeURIComponent(build.sha || 'main')); })
-      .then(function () { return get('/apps'); })
+      .then(function () { get('/watch?stop=1').catch(function () { /* older service */ }); return get('/apps'); })
       .then(function (data) {
         state.apps = data.apps || [];
         renderShelves();

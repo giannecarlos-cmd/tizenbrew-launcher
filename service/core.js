@@ -11,7 +11,7 @@
 
 var fs = require('fs');
 
-var VERSION = '0.12.1';
+var VERSION = '0.13.0';
 
 function send(res, status, body, type) {
   res.writeHead(status, {
@@ -653,7 +653,14 @@ var routes = {
   },
 
   // Return-to-Lumen status, for Diagnostics.
-  '/watch': function (req, res) {
+  // /watch            -> status and log
+  // /watch?stop=1     -> Lumen is on screen again; nothing to watch
+  // /watch?self=<id>  -> Lumen is handing TizenBrew's own window to a site
+  //                      module (TizenTube). Watch TizenBrew itself and reopen
+  //                      it (which autolaunches Lumen) when that module exits.
+  '/watch': function (req, res, query) {
+    if (query.stop) stopWatch('Lumen is back');
+    if (query.self && /^[A-Za-z0-9_.-]{3,80}$/.test(String(query.self))) startWatch(String(query.self), String(query.self));
     send(res, 200, { watching: watch ? { id: watch.id, seen: watch.seen } : null, log: watchLog });
   },
 
