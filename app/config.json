@@ -156,11 +156,12 @@
     },
     "grove": {
       "label": "Grove Rift",
-      "kind": "soon",
+      "kind": "web",
+      "url": "https://grove-rift-tv-test.rcv-rarecard-vault.workers.dev/tv.html",
       "color": "#4fbf7a",
       "glyph": "leaf",
       "base": "#0b2416",
-      "line": "Party mode coming soon"
+      "line": "Party: scan to play on your phones"
     },
     "diag": {
       "label": "Diagnostics",
