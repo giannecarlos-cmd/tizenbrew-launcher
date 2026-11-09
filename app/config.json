@@ -155,12 +155,13 @@
       "line": "On Chromecast via HDMI 1"
     },
     "grove": {
-      "label": "Grove Guardians",
-      "kind": "soon",
+      "label": "Grove Rift",
+      "kind": "web",
+      "url": "https://grove-rift-coop-test.rcv-rarecard-vault.workers.dev/?bot",
       "color": "#4fbf7a",
       "glyph": "leaf",
       "base": "#0b2416",
-      "line": "Coming soon"
+      "line": "TV test: watch it play itself"
     },
     "diag": {
       "label": "Diagnostics",

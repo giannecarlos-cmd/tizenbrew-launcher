@@ -172,3 +172,12 @@ body.veil-now #veil { transition: none; }
   #wall .focuslight, #wall .orb { transition: none; }
   #home, .rail, .tile .face, .btn { transition: none; }
 }
+
+/* Web game (Grove Rift test) shown full screen inside Lumen */
+#webgame { position: absolute; z-index: 30; inset: 0; background: #000; }
+#webgame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; }
+.webgame-fps, .webgame-hint { position: absolute; z-index: 1; font-family: var(--sans); font-size: 22px; padding: 8px 16px; border-radius: 999px;
+  background: rgba(3, 5, 11, .72); color: #e9edf5; }
+.webgame-fps { right: 32px; top: 28px; }
+.webgame-fps.good { color: #8fe3a8; } .webgame-fps.ok { color: #f0d080; } .webgame-fps.low { color: #ff9a8a; }
+.webgame-hint { left: 32px; top: 28px; color: #aab3c5; }

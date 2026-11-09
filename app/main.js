@@ -76,7 +76,7 @@
       var t = cfg.tiles[key];
       TILES[key] = {
         key: key, label: t.label, kind: t.kind, color: t.color || '#3a4b66', base: t.base || '#0c1726', line: t.line || '', glyph: t.glyph || 'play',
-        source: t.source, module: t.module || '', pinned: !!t.pinned, ids: t.ids || [], iconFrom: t.iconFrom || [],
+        source: t.source, module: t.module || '', url: t.url || '', pinned: !!t.pinned, ids: t.ids || [], iconFrom: t.iconFrom || [],
         names: (t.names || []).map(function (n) { return new RegExp(n, 'i'); }),
         exclude: t.exclude ? new RegExp(t.exclude, 'i') : null
       };
@@ -368,6 +368,7 @@
       return get('/appcontrol?id=' + encodeURIComponent(HELPER_ID) + '&data=' + encodeURIComponent(data))
         .catch(function () { veilIn(); toast('The TV box needs the input helper. Open Diagnostics to check it.'); });
     }
+    if (t.kind === 'web') return openWeb(key, t);
     if (t.module) return openModule(key, t);
     launchApp(key, t);
   }
@@ -428,6 +429,60 @@
       if (!mod.evaluateScriptOnDocumentStart) go();
     };
   }
+  // A web game shown full screen inside Lumen. The page keeps the remote's
+  // focus (the frame can't take it), so Back always closes the game. A small
+  // readout shows how smoothly the TV is drawing while it runs.
+  var web = null;
+  function openWeb(key, t) {
+    if (!/^https:\/\//.test(t.url)) { veilIn(); return toast(t.label + ' has no address yet.'); }
+    recordUse(key);
+    var wrap = document.createElement('div');
+    wrap.id = 'webgame';
+    wrap.innerHTML = '<iframe tabindex="-1" allow="autoplay; fullscreen" referrerpolicy="no-referrer"></iframe>' +
+      '<div class="webgame-fps" id="webFps">Loading ' + t.label + '...</div>' +
+      '<div class="webgame-hint">Back to close</div>';
+    document.body.appendChild(wrap);
+    var frame = wrap.querySelector('iframe');
+    frame.src = t.url;
+    web = { wrap: wrap, frames: 0, since: 0, raf: 0, slow: 0, samples: [] };
+    window.XD_MODE = 'web';
+    frame.addEventListener('load', function () { setTimeout(function () { try { window.focus(); } catch (e) { /* ok */ } veilIn(); }, 400); });
+    setTimeout(veilIn, 8000);
+    var fpsEl = wrap.querySelector('#webFps');
+    function count(ts) {
+      if (!web) return;
+      if (!web.since) web.since = ts;
+      web.frames++;
+      var span = ts - web.since;
+      if (span >= 2000) {
+        var fps = Math.round(web.frames * 1000 / span);
+        web.samples.push(fps);
+        if (web.samples.length > 15) web.samples.shift();
+        var avg = Math.round(web.samples.reduce(function (a, b) { return a + b; }, 0) / web.samples.length);
+        fpsEl.textContent = 'TV frame rate ' + fps + ' fps \u00b7 average ' + avg;
+        fpsEl.className = 'webgame-fps ' + (avg >= 50 ? 'good' : avg >= 30 ? 'ok' : 'low');
+        web.frames = 0; web.since = ts;
+      }
+      web.raf = requestAnimationFrame(count);
+    }
+    web.raf = requestAnimationFrame(count);
+  }
+  function closeWeb() {
+    if (!web) return;
+    cancelAnimationFrame(web.raf);
+    var w = web.wrap;
+    web = null;
+    var f = w.querySelector('iframe');
+    try { f.src = 'about:blank'; } catch (e) { /* gone */ }
+    w.parentNode.removeChild(w);
+    window.XD_MODE = 'home';
+    veilIn();
+  }
+  document.addEventListener('keydown', function (e) {
+    if (window.XD_MODE !== 'web') return;
+    if (e.keyCode === 10009 || e.keyCode === 8 || e.keyCode === 27) { e.preventDefault(); closeWeb(); }
+  });
+
   function runAction(key) {
     if (key === 'modules') { if (history.length > 1) history.back(); return; }
     if (key === 'diag') openDiagnostics();
