@@ -448,7 +448,9 @@
     frame.src = t.url;
     web = { wrap: wrap, frames: 0, since: 0, raf: 0, slow: 0, samples: [] };
     window.XD_MODE = 'web';
-    frame.addEventListener('load', function () { setTimeout(function () { try { window.focus(); } catch (e) { /* ok */ } veilIn(); }, 400); });
+    frame.addEventListener('load', function () { setTimeout(function () { keepFocus(); veilIn(); }, 400); });
+    // the game must never hold the remote: if it takes focus, Back would go to it and the TV would leave TizenBrew
+    web.guard = setInterval(keepFocus, 400);
     setTimeout(veilIn, 8000);
     var fpsEl = wrap.querySelector('#webFps');
     function count(ts) {
@@ -469,8 +471,14 @@
     }
     web.raf = requestAnimationFrame(count);
   }
+  function keepFocus() {
+    if (!web) return;
+    var f = web.wrap.querySelector('iframe');
+    try { if (document.activeElement === f) f.blur(); window.focus(); } catch (e) { /* ok */ }
+  }
   function closeWeb() {
     if (!web) return;
+    clearInterval(web.guard);
     cancelAnimationFrame(web.raf);
     var w = web.wrap;
     web = null;
@@ -484,6 +492,10 @@
   document.addEventListener('keydown', function (e) {
     if (window.XD_MODE !== 'web') return;
     if (e.keyCode === 10009 || e.keyCode === 8 || e.keyCode === 27) { e.preventDefault(); closeWeb(); }
+  });
+  // a game page that does get a Back press hands it to Lumen ({ lumen: 'back' })
+  window.addEventListener('message', function (e) {
+    if (window.XD_MODE === 'web' && e.data && e.data.lumen === 'back') closeWeb();
   });
 
   function runAction(key) {
