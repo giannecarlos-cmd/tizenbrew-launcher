@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Lumen</title>
+<style>
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+  .word { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+    display: flex; align-items: center; justify-content: center; gap: 22px;
+    font-family: 'SamsungOne', 'Helvetica Neue', Arial, sans-serif; font-weight: 600; font-size: 72px; color: #fff;
+    text-shadow: 0 0 18px rgba(255, 236, 214, .5), 0 0 46px rgba(240, 191, 134, .4); opacity: .9; }
+  .dot { width: 20px; height: 20px; border-radius: 50%; background: #f3c48a;
+    box-shadow: 0 0 14px 4px rgba(243, 196, 138, .9), 0 0 46px 14px rgba(232, 168, 103, .5); }
+  .note { position: absolute; left: 0; right: 0; bottom: 120px; text-align: center;
+    font-family: 'SamsungOne', Arial, sans-serif; font-size: 30px; color: #c9c3bb; }
+</style>
+</head>
+<body>
+<div class="word"><span class="dot"></span>Lumen</div>
+<div class="note" id="note"></div>
+<script>
+// Lumen lives inside TizenBrew (as a module that TizenBrew autolaunches).
+// This app only gives it its own name and icon on the TV: it opens TizenBrew
+// and gets out of the way.
+(function () {
+  var FALLBACK_ID = 'xvvl3S1bvH.TizenBrewStandalone';
+  var note = document.getElementById('note');
+  function show(msg) { note.textContent = msg; }
+  function quit(ms) { setTimeout(function () { try { tizen.application.getCurrentApplication().exit(); } catch (e) { /* closing */ } }, ms); }
+
+  function open(id) {
+    try {
+      tizen.application.launch(id, function () { quit(400); }, function () {
+        if (id !== FALLBACK_ID) return open(FALLBACK_ID);
+        show('TizenBrew could not be opened. Is it installed?');
+      });
+    } catch (e) { show('TizenBrew could not be opened.'); }
+  }
+
+  function findTizenBrew(done) {
+    try {
+      tizen.application.getAppsInfo(function (apps) {
+        var best = null;
+        for (var i = 0; i < apps.length; i++) {
+          var a = apps[i], name = a.name || '';
+          if (!/tizenbrew/i.test(name) && !/TizenBrewStandalone$/.test(a.id)) continue;
+          if (/installer/i.test(name)) continue;
+          if (!best || /TizenBrewStandalone$/.test(a.id)) best = a;
+        }
+        done(best ? best.id : FALLBACK_ID);
+      }, function () { done(FALLBACK_ID); });
+    } catch (e) { done(FALLBACK_ID); }
+  }
+
+  document.addEventListener('keydown', function (e) { if (e.keyCode === 10009) quit(0); });
+  findTizenBrew(open);
+})();
+</script>
+</body>
+</html>

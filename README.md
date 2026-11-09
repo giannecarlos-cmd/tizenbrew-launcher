@@ -44,3 +44,7 @@ Diagnostics:
 TizenBrew's service can't switch inputs (the TV's `tvwindow` API needs an app with its own window and the `tv.window` privilege), and the TV refuses remote-control connections from on-device apps. `helper/xd-input` is a tiny packaged app that does only that: opened with app-control data `source=HDMI1` and `mode=viewer|exit|show` it switches and gets out of the way; opened from the Apps list it shows a test screen.
 
 Build: pushing changes under `helper/xd-input/` runs `.github/workflows/sign-helper.yml`, which signs the app with Tizen Studio's CLI and the public Tizen developer and distributor certificates (as TizenBrew's own builds are) and commits `helper/dist/XDInput-signed.wgt` (old distributor cert) and `XDInput-signed-new.wgt` (new). This TV reports platform 5.5 to the installer, so the installer does not re-sign; an unsigned package fails with "Check certificate error". Install: TizenBrew Installer → Select file to install. Developer Mode's Host PC IP must point at the PC during the install, then back to `127.0.0.1`.
+
+## Lumen app (`helper/lumen-home/`)
+
+Gives Lumen its own name and icon in the TV's app row. Opening it launches TizenBrew, which autolaunches Lumen, then it exits. Signed by the same workflow as the input helper into `helper/dist/Lumen-signed.wgt` (and `-new`), installed the same way.

@@ -1,4 +1,4 @@
-name: Sign XD Input helper
+name: Sign TV helper apps
 
 # Signs helper/xd-input with Tizen Studio's CLI and the public Tizen developer
 # and distributor certificates, the same way TizenBrew's own builds are signed,
@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - 'helper/xd-input/**'
+      - 'helper/lumen-home/**'
       - '.github/workflows/sign-helper.yml'
   workflow_dispatch:
 
@@ -81,28 +82,33 @@ jobs:
           sed -i 's/^ *//' "$HOME/tizen-studio-data/profile/profiles.xml"
           tizen cli-config "profiles.path=$HOME/tizen-studio-data/profile/profiles.xml"
 
+      # Each app: <folder under helper/>:<file name in helper/dist/>
       - name: Build and sign
-        working-directory: helper/xd-input
+        working-directory: helper
         run: |
-          rm -rf .buildResult out && mkdir -p out
-          tizen build-web -out .buildResult
-          for P in Old New; do
-            mkdir -p "out/$P"
-            expect -c "set timeout 300; spawn tizen package -t wgt -o out/$P -s XD-$P -- .buildResult; expect eof"
-            cat "$HOME/tizen-studio-data/cli/logs/cli.log" | tail -20 || true
-            ls -la "out/$P"
-            test -n "$(ls out/$P/*.wgt 2>/dev/null)"
+          mkdir -p dist
+          for APP in xd-input:XDInput lumen-home:Lumen; do
+            DIR="${APP%%:*}"; NAME="${APP##*:}"
+            ( cd "$DIR"
+              rm -rf .buildResult out && mkdir -p out
+              tizen build-web -out .buildResult
+              for P in Old New; do
+                mkdir -p "out/$P"
+                expect -c "set timeout 300; spawn tizen package -t wgt -o out/$P -s XD-$P -- .buildResult; expect eof"
+                tail -20 "$HOME/tizen-studio-data/cli/logs/cli.log" || true
+                ls -la "out/$P"
+                test -n "$(ls out/$P/*.wgt 2>/dev/null)"
+              done
+              cp out/Old/*.wgt "../dist/$NAME-signed.wgt"
+              cp out/New/*.wgt "../dist/$NAME-signed-new.wgt"
+              rm -rf .buildResult out )
+            unzip -l "dist/$NAME-signed.wgt"
           done
-          mkdir -p ../dist
-          cp out/Old/*.wgt ../dist/XDInput-signed.wgt
-          cp out/New/*.wgt ../dist/XDInput-signed-new.wgt
-          rm -rf .buildResult out
-          unzip -l ../dist/XDInput-signed.wgt
 
       - name: Commit signed packages
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add helper/dist/XDInput-signed.wgt helper/dist/XDInput-signed-new.wgt
-          git commit -m "Signed XD Input helper packages [skip ci]" || echo "No changes"
+          git add helper/dist/*.wgt
+          git commit -m "Signed TV helper packages [skip ci]" || echo "No changes"
           git push
