@@ -11,7 +11,7 @@
 
 var fs = require('fs');
 
-var VERSION = '0.12.0';
+var VERSION = '0.12.1';
 
 function send(res, status, body, type) {
   res.writeHead(status, {
@@ -326,7 +326,7 @@ var watchTimer = null;
 // be watching. Both copies share Node's timers module, so the handle lives
 // there and a new copy stops the old one's watch.
 if (timers.__lumenWatchTimer) { try { timers.clearInterval(timers.__lumenWatchTimer); } catch (e) { /* gone */ } timers.__lumenWatchTimer = null; }
-var WATCH_EVERY = 1200;  // ms
+var WATCH_EVERY = 400;   // ms: fast enough that Samsung's home only blinks
 var WATCH_MAX = 8 * 3600 * 1000;
 var watchLog = [];
 
@@ -432,9 +432,10 @@ function onWatchState(present) {
     if (Date.now() - watch.since > 20000) stopWatch('never started');
     return;
   }
-  // Two misses in a row, so a brief blip inside the app doesn't count.
+  // The TV's on-screen answer is reliable, so act on the first 'not on
+  // screen'. The 'still running' fallback is coarser: wait ~1.2 s of misses.
   watch.misses++;
-  if (watch.misses < 2) return;
+  if (watch.misses < (watch.how === 'screen' ? 1 : 3)) return;
   var back = watch.back, id = watch.id, how = watch.how;
   stopWatch(how === 'screen' ? 'left the screen' : 'closed');
   noteWatch('return to Lumen after ' + id);
