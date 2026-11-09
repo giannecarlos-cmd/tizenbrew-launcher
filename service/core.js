@@ -11,7 +11,7 @@
 
 var fs = require('fs');
 
-var VERSION = '0.11.0';
+var VERSION = '0.12.0';
 
 function send(res, status, body, type) {
   res.writeHead(status, {
@@ -352,31 +352,75 @@ function startWatch(id, back) {
 }
 
 // Ask the TV's local REST service whether an app is on screen. Samsung TVs
-// answer GET /api/v2/applications/<id> with { running, visible }. Calls back
-// with true/false, or null when the TV doesn't say (then we fall back).
-function appVisible(id, cb) {
+// answer GET /api/v2/applications/<id> with { running, visible }, but often
+// under the app's numeric store ID rather than its Tizen ID, so each app gets
+// a list of candidate IDs; the first one the TV recognizes is remembered.
+var STORE_IDS = {
+  'org.tizen.netflix-app': ['3201907018807', '11101200001'],
+  '9Ur5IzDKqV.TizenYouTube': ['111299001912'],
+  'org.tizen.primevideo': ['3201910019365', '3201512006785'],
+  'MCmYXNxgcu.DisneyPlus': ['3201901017640'],
+  'SKvHIMBcln.CraveTV': ['3201703012079'],
+  'CDMPWSBGDH.cineplex': ['3201707014347'],
+  'com.samsung.tv.tvplus': ['3201710015037']
+};
+var restId = {};      // tizen app id -> REST id that works ('' = none)
+
+function restCandidates(id) {
+  var list = [id];
+  var info = appIndex[id];
+  if (info && info.packageId && list.indexOf(info.packageId) < 0) list.push(info.packageId);
+  (STORE_IDS[id] || []).forEach(function (x) { if (list.indexOf(x) < 0) list.push(x); });
+  return list;
+}
+
+function restGet(rid, cb) {
   var done = false;
-  function finish(v) { if (!done) { done = true; cb(v); } }
-  var t = later(guard(function () { finish(null); }), 1500);
+  function finish(status, j, body) { if (!done) { done = true; cb(status, j, body); } }
+  var t = later(guard(function () { finish(0, null, 'timeout'); }), 1500);
   try {
-    var req = require('http').get('http://127.0.0.1:8001/api/v2/applications/' + encodeURIComponent(id), guard(function (res) {
+    var req = require('http').get('http://127.0.0.1:8001/api/v2/applications/' + encodeURIComponent(rid), guard(function (res) {
       var body = '';
       res.on('data', function (c) { body += c; });
       res.on('end', guard(function () {
         cancel(t);
-        if (!watch) return finish(null);
-        if (!watch.restNoted) { watch.restNoted = true; noteWatch('screen check: HTTP ' + res.statusCode + ' ' + body.slice(0, 60)); }
         var j = null;
         try { j = JSON.parse(body); } catch (e) { /* not JSON */ }
-        if (res.statusCode === 200 && j && typeof j.visible === 'boolean') return finish(j.visible);
-        finish(null);
-      }, function () { finish(null); }));
-    }, function () { finish(null); }));
-    req.on('error', guard(function () { cancel(t); finish(null); }));
+        finish(res.statusCode, j, body);
+      }, function () { finish(0, null, 'parse'); }));
+    }, function () { finish(0, null, 'error'); }));
+    req.on('error', guard(function (e) { cancel(t); finish(0, null, (e && e.code) || 'error'); }));
   } catch (e) {
     cancel(t);
-    finish(null);
+    finish(0, null, errText(e));
   }
+}
+
+// Calls back with true/false, or null when the TV doesn't say (then we fall back).
+function appVisible(id, cb) {
+  if (restId[id] === '') return cb(null);
+  if (restId[id]) {
+    return restGet(restId[id], function (status, j) {
+      cb(status === 200 && j && typeof j.visible === 'boolean' ? j.visible : null);
+    });
+  }
+  var cands = restCandidates(id), notes = [];
+  (function next(i) {
+    if (i >= cands.length) {
+      restId[id] = '';
+      noteWatch('screen check: no ID recognized (' + notes.join(', ') + ')');
+      return cb(null);
+    }
+    restGet(cands[i], function (status, j) {
+      notes.push(cands[i] + '=' + status);
+      if (status === 200 && j && typeof j.visible === 'boolean') {
+        restId[id] = cands[i];
+        noteWatch('screen check: TV knows ' + id + ' as ' + cands[i]);
+        return cb(j.visible);
+      }
+      next(i + 1);
+    });
+  })(0);
 }
 
 // Called with true when the watched app is on screen (or running), false when not.
@@ -588,6 +632,23 @@ var routes = {
     } catch (e) {
       fail(res, e);
     }
+  },
+
+  // /restprobe?ids=a,b: which IDs the TV's REST service recognizes, per app.
+  '/restprobe': function (req, res, query) {
+    var ids = String(query.ids || '').split(',').filter(function (x) { return /^[A-Za-z0-9_.-]{2,80}$/.test(x); }).slice(0, 8);
+    var out = [];
+    (function nextApp(a) {
+      if (a >= ids.length) return send(res, 200, { apps: out });
+      var cands = restCandidates(ids[a]), row = { id: ids[a], tried: [] };
+      (function next(i) {
+        if (i >= cands.length) { out.push(row); return nextApp(a + 1); }
+        restGet(cands[i], function (status, j) {
+          row.tried.push(cands[i] + '=' + status + (j && typeof j.visible === 'boolean' ? (j.visible ? ' visible' : ' hidden') : ''));
+          next(i + 1);
+        });
+      })(0);
+    })(0);
   },
 
   // Return-to-Lumen status, for Diagnostics.

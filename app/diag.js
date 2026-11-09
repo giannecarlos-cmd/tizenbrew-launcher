@@ -263,14 +263,19 @@
   // files actually are. Shown as text so a photo of it is enough to diagnose.
   function iconCheck() {
     var CHECK = [['Netflix', /netflix/i, 'netflix'], ['Prime Video', /prime video|primevideo/i, 'prime'],
-      ['YouTube', /^youtube$/i, 'youtube'], ['Samsung TV Plus', /tv ?plus/i, 'tvplus']];
+      ['YouTube', /^youtube$/i, 'youtube'], ['Crave', /^crave/i, 'crave']];
     var ids = [], lines = [];
     CHECK.forEach(function (c) {
       var a = state.apps.filter(function (x) { return c[1].test(x.name || '') || c[1].test(x.id || ''); })[0];
       if (a) ids.push(a.id);
     });
     var box = $('iconcheck');
-    get('/icondiag?ids=' + encodeURIComponent(ids.join(','))).then(function (d) {
+    // First: which app IDs the TV's own service recognizes (for return-to-Lumen).
+    get('/restprobe?ids=' + encodeURIComponent(ids.join(','))).then(function (r) {
+      (r.apps || []).forEach(function (a) { lines.push('<b>screen check ' + esc(a.id) + '</b>: ' + esc(a.tried.join(' | '))); });
+      box.innerHTML = lines.join('<br>');
+    }).catch(function (e) { lines.push('screen check failed: ' + esc(e.message)); })
+    .then(function () { return get('/icondiag?ids=' + encodeURIComponent(ids.join(','))); }).then(function (d) {
       (d.apps || []).forEach(function (a) {
         lines.push('<b>' + esc(a.id) + '</b> pkg=' + esc(a.packageId) + ' reported=' + esc(a.reported || 'none') +
           (a.placeholder ? ' <span class="bad">(placeholder)</span>' : '') +
