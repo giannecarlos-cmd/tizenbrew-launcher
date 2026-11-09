@@ -145,6 +145,15 @@
       "line": "Casual games",
       "glyph": "game"
     },
+    "netflixgames": {
+      "label": "Netflix Games",
+      "kind": "input",
+      "source": "HDMI1",
+      "color": "#e50914",
+      "base": "#1a0405",
+      "glyph": "game",
+      "line": "On Chromecast via HDMI 1"
+    },
     "grove": {
       "label": "Grove Guardians",
       "kind": "soon",
@@ -204,6 +213,7 @@
       "id": "play",
       "title": "Play",
       "tiles": [
+        "netflixgames",
         "freegames",
         "grove"
       ]

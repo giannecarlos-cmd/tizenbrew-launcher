@@ -41,6 +41,10 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
   background: radial-gradient(closest-side, rgba(159, 211, 230, .22), transparent);
   transform: translate(960px, 800px); will-change: transform;
   transition: transform 520ms cubic-bezier(.2, .7, .2, 1); }
+#scrim { position: absolute; z-index: 4; left: 0; right: 0; top: 0; height: 220px; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(3, 5, 11, 1) 0%, rgba(3, 5, 11, .97) 68%, rgba(3, 5, 11, 0) 100%);
+  opacity: 0; transition: opacity 320ms ease; }
+body.scrolled #scrim { opacity: 1; }
 .topbar { position: absolute; z-index: 5; left: var(--safe); right: var(--safe); top: 44px;
   display: flex; justify-content: space-between; align-items: baseline; }
 .mark { display: flex; align-items: center; gap: 12px; font-family: var(--sans); font-weight: 600; font-size: 30px; letter-spacing: .5px; color: var(--mist); }

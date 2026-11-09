@@ -291,7 +291,7 @@
     if (focusedEl && focusedEl !== el) focusedEl.classList.remove('focused');
     el.classList.add('focused');
     focusedEl = el;
-    if (shift !== homeShift) { $('home').style.transform = 'translateY(' + (-shift) + 'px)'; homeShift = shift; }
+    if (shift !== homeShift) { $('home').style.transform = 'translateY(' + (-shift) + 'px)'; if (!shift !== !homeShift) document.body.classList.toggle('scrolled', shift > 0); homeShift = shift; }
     document.body.classList.toggle('browsing', state.row > 0);
     if (rail && railShift[rail.id] !== railX) { rail.style.transform = 'translateX(' + railX + 'px)'; railShift[rail.id] = railX; }
 
