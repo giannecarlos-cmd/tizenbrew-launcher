@@ -326,16 +326,39 @@
   }
 
   // ---------------------------------------------------------------- opening
+  // Fade to black, then leave. If nothing takes the screen (an error), lift the veil again.
+  var veilTimer;
+  function veilOut() {
+    document.body.classList.add('veiled');
+    clearTimeout(veilTimer);
+    veilTimer = setTimeout(function () { if (!document.hidden) veilIn(); }, 4000);
+  }
+  function veilIn() {
+    clearTimeout(veilTimer);
+    document.body.classList.remove('veil-now');
+    document.body.classList.remove('veiled');
+  }
+  function leaveFor(fn) { veilOut(); setTimeout(fn, 230); }
+  // Coming back: start black and fade in, so stale content never shows.
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { document.body.classList.add('veil-now'); document.body.classList.add('veiled'); return; }
+    setTimeout(function () { veilIn(); }, 60);
+  });
+
   function open(key) {
     var t = TILES[key];
     if (!t) return;
     if (t.kind === 'soon') return toast(t.label + ' is coming soon.');
     if (t.kind === 'action') return runAction(key);
+    leaveFor(function () { launchTile(key, t); });
+  }
+
+  function launchTile(key, t) {
     if (t.kind === 'viewer') {
       recordUse(key);
       var vb = tizenBrewId();
       return get('/launch?id=' + encodeURIComponent(TV_VIEWER) + (vb ? '&back=' + encodeURIComponent(vb) : ''))
-        .catch(function () { toast('Live TV did not open. Try again in a moment.'); });
+        .catch(function () { veilIn(); toast('Live TV did not open. Try again in a moment.'); });
     }
     if (t.kind === 'input') {
       recordUse(key);
@@ -343,15 +366,15 @@
       var tb = tizenBrewId();
       if (tb) data += '|back:' + tb;
       return get('/appcontrol?id=' + encodeURIComponent(HELPER_ID) + '&data=' + encodeURIComponent(data))
-        .catch(function () { toast('The TV box needs the input helper. Open Diagnostics to check it.'); });
+        .catch(function () { veilIn(); toast('The TV box needs the input helper. Open Diagnostics to check it.'); });
     }
     var app = state.resolved[key];
-    if (!app) return toast(t.label + ' is not installed on this TV.');
+    if (!app) { veilIn(); return toast(t.label + ' is not installed on this TV.'); }
     recordUse(key);
     // back=: the service reopens Lumen when this app closes.
     var back = tizenBrewId();
     get('/launch?id=' + encodeURIComponent(app.id) + (back ? '&back=' + encodeURIComponent(back) : ''))
-      .catch(function () { toast(t.label + ' did not open. Try again in a moment.'); });
+      .catch(function () { veilIn(); toast(t.label + ' did not open. Try again in a moment.'); });
   }
   function runAction(key) {
     if (key === 'modules') { if (history.length > 1) history.back(); return; }

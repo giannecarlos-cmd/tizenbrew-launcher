@@ -154,6 +154,9 @@ body.browsing .topbar::before { opacity: 1; }
 .tile.soon .face { filter: saturate(.55) brightness(.8); }
 .tile.missing .face { opacity: .45; }
 
+#veil { position: absolute; z-index: 20; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 420ms ease; }
+body.veiled #veil { opacity: 1; transition-duration: 220ms; }
+body.veil-now #veil { transition: none; }
 #toast { position: absolute; z-index: 9; left: 50%; bottom: 56px; transform: translateX(-50%) translateY(20px);
   padding: 16px 30px; border-radius: 30px; background: rgba(19, 35, 58, .95); font-size: 24px; color: var(--mist);
   opacity: 0; transition: opacity 220ms ease, transform 220ms ease; }
